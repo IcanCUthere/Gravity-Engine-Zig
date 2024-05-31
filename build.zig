@@ -15,6 +15,8 @@ pub fn build(b: *std.Build) void {
     // set a preferred release mode, allowing the user to decide how to optimize.
     const optimize = b.standardOptimizeOption(.{});
 
+    std.log.info("Compiling for: {s}-{s}-{s}\n", .{ @tagName(target.result.cpu.arch), @tagName(target.result.os.tag), @tagName(target.result.abi) });
+
     const exe = b.addExecutable(.{
         .name = "Gravity-Engine",
         .root_source_file = b.path("src/main.zig"),
