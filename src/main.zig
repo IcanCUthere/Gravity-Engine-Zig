@@ -4,6 +4,10 @@ const vk = @cImport({
     @cInclude("vulkan.h");
 });
 
+pub fn loadVkLib() !std.DynLib {
+    return std.DynLib.open("vulkan-1.dll") catch std.DynLib.open("libvulkan.so") catch try std.DynLib.open("libvulkan.dylib");
+}
+
 pub fn main() !void {
     try glfw.init();
     defer glfw.terminate();
@@ -11,7 +15,7 @@ pub fn main() !void {
     var window = try glfw.Window.create(1000, 1000, "App", null);
     defer window.destroy();
 
-    var lib = std.DynLib.open("vulkan-1") catch try std.DynLib.open("libvulkan.so");
+    var lib = try loadVkLib();
     defer lib.close();
 
     const getInstanceAddr: vk.PFN_vkGetInstanceProcAddr = lib.lookup(vk.PFN_vkGetInstanceProcAddr, "vkGetInstanceProcAddr").?;
