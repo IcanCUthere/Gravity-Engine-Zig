@@ -3,38 +3,31 @@ name: zig_build_and_test
 on: push
 
 jobs:
-  test_ubuntu:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: goto-bus-stop/setup-zig@v2
-      - name: Installing VulkanSDK
-        run: sudo apt install libvulkan-dev
-      - name: Building and Testing zig
-        run: zig build test
   test_windows:
-    runs-on: windows-latest
+    runs-on: [self-hosted, windows, X64]
     steps:
-      - uses: actions/checkout@v2
-      - uses: goto-bus-stop/setup-zig@v2
-      - name: Install winget
-        uses: Cyberboss/install-winget@v1
-      - name: Install VulkanSDK
-        run: winget install -e --id KhronosGroup.VulkanSDK --accept-source-agreements --accept-package-agreements
-      - name: Building and Testing zig
-        run: zig build test
-  test_macos:
-    runs-on: macos-latest
+      - uses: actions/checkout@v4
+      - run: winget install --id=KhronosGroup.VulkanRT -e --accept-source-agreements --accept-package-agreements
+      - run: zig build test
+
+  test_linux:
+    runs-on: [self-hosted, linux, X64]
     steps:
-      - uses: actions/checkout@v2
-      - uses: goto-bus-stop/setup-zig@v2
-      - name: Installing MoltenVK
-        run: brew install molten-vk
-      - name: Building and Testing zig
-        run: zig build test
+      - uses: actions/checkout@v4
+      - run: sudo apt install libvulkan-dev
+      - run: zig build test
+
+  #test_mac:
+  #  runs-on: [self-hosted, macOS, X64]
+  #  steps:
+  #    - uses: actions/checkout@v4
+  #    - run: brew install molten-vk
+  #    - run: zig build test
+
+
   lint:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, X64]
     steps:
-      - uses: actions/checkout@v2
-      - uses: goto-bus-stop/setup-zig@v2
+      - uses: actions/checkout@v4
+      #- uses: goto-bus-stop/setup-zig@v2
       - run: zig fmt --check .
