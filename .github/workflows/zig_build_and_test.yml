@@ -7,27 +7,23 @@ jobs:
     runs-on: [self-hosted, windows, X64]
     steps:
       - uses: actions/checkout@v4
-      - run: winget install --id=KhronosGroup.VulkanRT -e --accept-source-agreements --accept-package-agreements
       - run: zig build test
 
   test_linux:
     runs-on: [self-hosted, linux, X64]
     steps:
       - uses: actions/checkout@v4
-      - run: sudo apt install libvulkan-dev
       - run: zig build test
 
-  #test_mac:
-  #  runs-on: [self-hosted, macOS, X64]
-  #  steps:
-  #    - uses: actions/checkout@v4
-  #    - run: brew install molten-vk
-  #    - run: zig build test
+  test_mac:
+    runs-on: [self-hosted, macOS, X64]
+    steps:
+      - uses: actions/checkout@v4
+      - run: zig build test
 
 
   lint:
     runs-on: [self-hosted, linux, X64]
     steps:
       - uses: actions/checkout@v4
-      #- uses: goto-bus-stop/setup-zig@v2
       - run: zig fmt --check .
