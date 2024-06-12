@@ -78,6 +78,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    tests.root_module.addImport("vulkan", vkzig.module("vulkan-zig"));
     tests.root_module.addImport("zglfw", zglfw.module("root"));
     tests.linkLibrary(zglfw.artifact("glfw"));
 
