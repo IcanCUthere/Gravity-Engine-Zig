@@ -149,6 +149,13 @@ pub fn getProcAddress(procname: [:0]const u8) ?GlProc {
 }
 extern fn glfwGetProcAddress(procname: [*:0]const u8) ?GlProc;
 
+pub fn getInstanceProcAddress(instance: ?*const anyopaque, procname: [*:0]const u8) ?GlProc {
+    return glfwGetInstanceProcAddress(instance, procname);
+}
+extern fn glfwGetInstanceProcAddress(instance: ?*const anyopaque, procname: [*:0]const u8) ?GlProc;
+
+//GLFWAPI GLFWvkproc glfwGetInstanceProcAddress(VkInstance instance, const char* procname);
+
 //--------------------------------------------------------------------------------------------------
 //
 // Keyboard/Mouse

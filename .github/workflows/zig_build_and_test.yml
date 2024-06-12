@@ -1,6 +1,10 @@
 name: zig_build_and_test
 
-on: push
+on: 
+  push:
+    branches:
+      - main
+      - test
 
 jobs:
   test_windows:

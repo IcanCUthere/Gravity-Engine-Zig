@@ -24,6 +24,11 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    const vkzig = b.dependency("vulkan_zig", .{
+        .registry = @as([]const u8, b.pathFromRoot("libs/vk.xml")),
+    });
+    exe.root_module.addImport("vulkan", vkzig.module("vulkan-zig"));
+
     const zphysics = b.dependency("zphysics", .{
         .use_double_precision = false,
         .enable_cross_platform_determinism = true,

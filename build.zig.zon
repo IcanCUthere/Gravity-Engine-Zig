@@ -19,6 +19,11 @@
         .zglfw = .{ .path = "libs/zglfw" },
         .system_sdk = .{ .path = "libs/system-sdk" },
 
+        .vulkan_zig = .{
+            .url = "https://github.com/Snektron/vulkan-zig/archive/a44d86899b5d8e5656c8e80695d1d9f4886540a2.tar.gz",
+            .hash = "12209449a4ffca1976eeeb1b6d5ff04ee688011a6842c79ca78a2de3c12ac7060dc9",
+        },
+
         // See `zig fetch --save <url>` for a command-line interface for adding dependencies.
         //.example = .{
         //    // When updating this field to a new URL, be sure to delete the corresponding
