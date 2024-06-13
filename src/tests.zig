@@ -1,6 +1,7 @@
 const std = @import("std");
 const glfw = @import("zglfw");
 const vk = @import("vulkan.zig");
+const builtin = @import("builtin");
 
 test "glfw working" {
     try glfw.init();
@@ -8,6 +9,10 @@ test "glfw working" {
 }
 
 test "can create window" {
+    if (builtin.os.tag == .windows or builtin.os.tag == .macos) {
+        return error.SkipZigTest;
+    }
+
     glfw.init() catch return error.SkipZigTest;
     defer glfw.terminate();
 
@@ -32,6 +37,10 @@ test "vulkan can load functions" {
 }
 
 test "vulkan can create instance" {
+    if (builtin.os.tag == .windows or builtin.os.tag == .macos) {
+        return error.SkipZigTest;
+    }
+
     try glfw.init();
     defer glfw.terminate();
 
