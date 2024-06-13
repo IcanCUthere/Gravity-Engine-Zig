@@ -1,12 +1,11 @@
 const std = @import("std");
 const glfw = @import("zglfw");
-const vk = @cImport({
-    @cInclude("vulkan.h");
-});
 
-pub fn loadVkLib() !std.DynLib {
-    return std.DynLib.open("vulkan-1.dll") catch std.DynLib.open("libvulkan.so") catch try std.DynLib.open("libvulkan.dylib");
-}
+const vk = @import("vulkan.zig");
+
+var bd: vk.BaseDispatch = undefined;
+var id: vk.InstanceDispatch = undefined;
+var dd: vk.DeviceDispatch = undefined;
 
 pub fn main() !void {
     try glfw.init();
@@ -15,21 +14,25 @@ pub fn main() !void {
     var window = try glfw.Window.create(1000, 1000, "App", null);
     defer window.destroy();
 
-    var lib = try loadVkLib();
-    defer lib.close();
+    const extensions = try glfw.getRequiredInstanceExtensions();
 
-    const getInstanceAddr: vk.PFN_vkGetInstanceProcAddr = lib.lookup(vk.PFN_vkGetInstanceProcAddr, "vkGetInstanceProcAddr").?;
+    bd = try vk.BaseDispatch.load(vk.glfwGetInstanceProcAddress);
 
-    if (getInstanceAddr) |getAddr| {
-        const createInstance: vk.PFN_vkCreateInstance = @ptrCast(getAddr(null, "vkCreateInstance"));
-        if (createInstance) |_| {
-            std.log.info("All clear\n", .{});
-        } else {
-            std.log.info("Not all clear\n", .{});
-        }
-    } else {
-        std.log.info("Not found!\n", .{});
-    }
+    const instance = try bd.createInstance(&.{
+        .p_application_info = &.{
+            .p_application_name = "Gravity Control",
+            .application_version = vk.makeApiVersion(0, 0, 0, 0),
+            .p_engine_name = "Gravity Engine",
+            .engine_version = vk.makeApiVersion(0, 0, 0, 0),
+            .api_version = vk.API_VERSION_1_2,
+        },
+        .enabled_extension_count = @intCast(extensions.len),
+        .pp_enabled_extension_names = @ptrCast(extensions),
+    }, null);
+
+    id = try vk.InstanceDispatch.load(instance, bd.dispatch.vkGetInstanceProcAddr);
+
+    defer id.destroyInstance(instance, null);
 
     while (!window.shouldClose()) {
         glfw.pollEvents();
