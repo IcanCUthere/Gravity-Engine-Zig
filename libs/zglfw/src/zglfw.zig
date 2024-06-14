@@ -154,6 +154,11 @@ pub fn getInstanceProcAddress(instance: ?*const anyopaque, procname: [*:0]const 
 }
 extern fn glfwGetInstanceProcAddress(instance: ?*const anyopaque, procname: [*:0]const u8) ?GlProc;
 
+pub fn createWindowSurface(instance: ?*anyopaque, window: *Window, allocation_callbacks: ?*const anyopaque, surface: *anyopaque) u32 {
+    return glfwCreateWindowSurface(instance, window, allocation_callbacks, surface);
+}
+extern fn glfwCreateWindowSurface(instance: ?*anyopaque, window: *Window, allocation_callbacks: ?*const anyopaque, surface: *anyopaque) u32;
+
 //GLFWAPI GLFWvkproc glfwGetInstanceProcAddress(VkInstance instance, const char* procname);
 
 //--------------------------------------------------------------------------------------------------
