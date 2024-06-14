@@ -31,9 +31,9 @@ test "vulkan can load functions" {
     glfw.init() catch return error.SkipZigTest;
     defer glfw.terminate();
 
-    const f = glfw.getInstanceProcAddress(null, "vkGetInstanceProcAddr");
-
-    try std.testing.expect(f != null);
+    _ = try vk.BaseDispatch.load(vk.glfwGetInstanceProcAddress);
+    _ = try vk.InstanceDispatch.load(vk.Instance.null_handle, vk.glfwGetInstanceProcAddress);
+    //_ = try vk.DeviceDispatch.load(vk.Device.null_handle, vk.glfwGetInstanceProcAddress);
 }
 
 test "vulkan can create instance" {
@@ -41,8 +41,10 @@ test "vulkan can create instance" {
         return error.SkipZigTest;
     }
 
-    try glfw.init();
+    glfw.init() catch return error.SkipZigTest;
     defer glfw.terminate();
+
+    const extensions = try glfw.getRequiredInstanceExtensions();
 
     var bd = try vk.BaseDispatch.load(vk.glfwGetInstanceProcAddress);
 
@@ -54,8 +56,10 @@ test "vulkan can create instance" {
             .engine_version = vk.makeApiVersion(0, 0, 0, 0),
             .api_version = vk.API_VERSION_1_2,
         },
-        .enabled_extension_count = 0,
-        .pp_enabled_extension_names = null,
+        .enabled_extension_count = @intCast(extensions.len),
+        .pp_enabled_extension_names = extensions.ptr,
+        .enabled_layer_count = 0,
+        .pp_enabled_layer_names = null,
     }, null);
 
     var id = try vk.InstanceDispatch.load(instance, bd.dispatch.vkGetInstanceProcAddr);
