@@ -1,4 +1,5 @@
 const std = @import("std");
+const vkgen = @import("vulkan_zig");
 
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
@@ -26,6 +27,15 @@ pub fn build(b: *std.Build) void {
         });
         cmp.root_module.addImport("vulkan", vkzig.module("vulkan-zig"));
 
+        const shader_comp = vkgen.ShaderCompileStep.create(
+            b,
+            &[_][]const u8{ "glslc", "--target-env=vulkan1.2" },
+            "-o",
+        );
+        shader_comp.add("shader_frag", "fragment_shader.frag", .{});
+        shader_comp.add("shader_vert", "vertex_shader.vert", .{});
+        cmp.root_module.addImport("shaders", shader_comp.getModule());
+
         const zphysics = b.dependency("zphysics", .{
             .use_double_precision = false,
             .enable_cross_platform_determinism = true,
@@ -36,6 +46,9 @@ pub fn build(b: *std.Build) void {
         const zglfw = b.dependency("zglfw", .{});
         cmp.root_module.addImport("zglfw", zglfw.module("root"));
         cmp.linkLibrary(zglfw.artifact("glfw"));
+
+        const zmath = b.dependency("zmath", .{});
+        cmp.root_module.addImport("zmath", zmath.module("root"));
 
         @import("system_sdk").addLibraryPathsTo(cmp);
 
