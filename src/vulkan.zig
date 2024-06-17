@@ -1,7 +1,7 @@
 const std = @import("std");
 const glfw = @import("zglfw");
 const vk = @import("vulkan");
-const vma = @cImport({
+pub const vma = @cImport({
     @cInclude("vk_mem_alloc.cpp");
 });
 
@@ -11,53 +11,69 @@ pub inline fn glfwGetInstanceProcAddress(handle: vk.Instance, name: [*:0]const u
     return @ptrCast(glfw.getInstanceProcAddress(@ptrFromInt(@intFromEnum(handle)), name));
 }
 
-pub inline fn createSurface(instance: vk.Instance, window: *glfw.Window) !vk.SurfaceKHR {
+pub inline fn createSurface(instance: InstProxy, window: *glfw.Window) !vk.SurfaceKHR {
     var surface: vk.SurfaceKHR = undefined;
 
-    if (@as(vk.Result, @enumFromInt(glfw.createWindowSurface(@ptrFromInt(@intFromEnum(instance)), window, null, &surface))) != vk.Result.success) {
+    if (@as(vk.Result, @enumFromInt(glfw.createWindowSurface(@ptrFromInt(@intFromEnum(instance.handle)), window, null, &surface))) != vk.Result.success) {
         return error.CreateSurfaceError;
     }
 
     return surface;
 }
 
-pub inline fn createAllocator(instance: vk.Instance, device: vk.Device, physDev: vk.PhysicalDevice, apiVersion: u32, bd: BaseDispatch, id: InstanceDispatch, dd: DeviceDispatch) !vma.VmaAllocator {
+pub const Allocator = vma.VmaAllocator;
+pub const AllocationCreateInfo = vma.VmaAllocationCreateInfo;
+pub const Allocation = vma.VmaAllocation;
+pub const AllocationInfo = vma.VmaAllocationInfo;
+
+pub const ImageAllocation = struct {
+    image: vk.Image,
+    allocation: Allocation,
+    //allocationInfo: AllocationInfo,
+};
+
+pub const BufferAllocation = struct {
+    buffer: vk.Buffer,
+    allocation: Allocation,
+};
+
+pub inline fn createAllocator(instance: InstProxy, device: DevProxy, physDev: vk.PhysicalDevice, apiVersion: u32, bd: BaseDispatch) !Allocator {
     var allocator: vma.VmaAllocator = undefined;
 
     const res = vma.vmaCreateAllocator(&.{
-        .instance = @ptrFromInt(@intFromEnum(instance)),
-        .device = @ptrFromInt(@intFromEnum(device)),
+        .instance = @ptrFromInt(@intFromEnum(instance.handle)),
+        .device = @ptrFromInt(@intFromEnum(device.handle)),
         .physicalDevice = @ptrFromInt(@intFromEnum(physDev)),
         .vulkanApiVersion = apiVersion,
         .pVulkanFunctions = &vma.VmaVulkanFunctions{
             .vkGetInstanceProcAddr = @ptrCast(bd.dispatch.vkGetInstanceProcAddr),
 
-            .vkGetDeviceProcAddr = @ptrCast(id.dispatch.vkGetDeviceProcAddr),
-            .vkGetPhysicalDeviceProperties = @ptrCast(id.dispatch.vkGetPhysicalDeviceProperties),
-            .vkGetPhysicalDeviceMemoryProperties = @ptrCast(id.dispatch.vkGetPhysicalDeviceMemoryProperties),
-            .vkGetPhysicalDeviceMemoryProperties2KHR = @ptrCast(id.dispatch.vkGetPhysicalDeviceMemoryProperties2),
+            .vkGetDeviceProcAddr = @ptrCast(instance.wrapper.dispatch.vkGetDeviceProcAddr),
+            .vkGetPhysicalDeviceProperties = @ptrCast(instance.wrapper.dispatch.vkGetPhysicalDeviceProperties),
+            .vkGetPhysicalDeviceMemoryProperties = @ptrCast(instance.wrapper.dispatch.vkGetPhysicalDeviceMemoryProperties),
+            .vkGetPhysicalDeviceMemoryProperties2KHR = @ptrCast(instance.wrapper.dispatch.vkGetPhysicalDeviceMemoryProperties2),
 
-            .vkAllocateMemory = @ptrCast(dd.dispatch.vkAllocateMemory),
-            .vkFreeMemory = @ptrCast(dd.dispatch.vkFreeMemory),
-            .vkBindBufferMemory = @ptrCast(dd.dispatch.vkBindBufferMemory),
-            .vkBindBufferMemory2KHR = @ptrCast(dd.dispatch.vkBindBufferMemory2),
-            .vkBindImageMemory = @ptrCast(dd.dispatch.vkBindImageMemory),
-            .vkBindImageMemory2KHR = @ptrCast(dd.dispatch.vkBindImageMemory2),
-            .vkCmdCopyBuffer = @ptrCast(dd.dispatch.vkCmdCopyBuffer),
-            .vkCreateBuffer = @ptrCast(dd.dispatch.vkCreateBuffer),
-            .vkDestroyBuffer = @ptrCast(dd.dispatch.vkDestroyBuffer),
-            .vkCreateImage = @ptrCast(dd.dispatch.vkCreateImage),
-            .vkDestroyImage = @ptrCast(dd.dispatch.vkDestroyImage),
-            .vkGetBufferMemoryRequirements = @ptrCast(dd.dispatch.vkGetBufferMemoryRequirements),
-            .vkGetBufferMemoryRequirements2KHR = @ptrCast(dd.dispatch.vkGetBufferMemoryRequirements2),
-            .vkGetImageMemoryRequirements = @ptrCast(dd.dispatch.vkGetImageMemoryRequirements),
-            .vkGetImageMemoryRequirements2KHR = @ptrCast(dd.dispatch.vkGetImageMemoryRequirements2),
-            .vkMapMemory = @ptrCast(dd.dispatch.vkMapMemory),
-            .vkUnmapMemory = @ptrCast(dd.dispatch.vkUnmapMemory),
-            .vkInvalidateMappedMemoryRanges = @ptrCast(dd.dispatch.vkInvalidateMappedMemoryRanges),
-            .vkFlushMappedMemoryRanges = @ptrCast(dd.dispatch.vkFlushMappedMemoryRanges),
-            //.vkGetDeviceBufferMemoryRequirements = @ptrCast(dd.dispatch.vkGetDeviceBufferMemoryRequirements),
-            //.vkGetDeviceImageMemoryRequirements = @ptrCast(dd.dispatch.vkGetDeviceImageMemoryRequirements),
+            .vkAllocateMemory = @ptrCast(device.wrapper.dispatch.vkAllocateMemory),
+            .vkFreeMemory = @ptrCast(device.wrapper.dispatch.vkFreeMemory),
+            .vkBindBufferMemory = @ptrCast(device.wrapper.dispatch.vkBindBufferMemory),
+            .vkBindBufferMemory2KHR = @ptrCast(device.wrapper.dispatch.vkBindBufferMemory2),
+            .vkBindImageMemory = @ptrCast(device.wrapper.dispatch.vkBindImageMemory),
+            .vkBindImageMemory2KHR = @ptrCast(device.wrapper.dispatch.vkBindImageMemory2),
+            .vkCmdCopyBuffer = @ptrCast(device.wrapper.dispatch.vkCmdCopyBuffer),
+            .vkCreateBuffer = @ptrCast(device.wrapper.dispatch.vkCreateBuffer),
+            .vkDestroyBuffer = @ptrCast(device.wrapper.dispatch.vkDestroyBuffer),
+            .vkCreateImage = @ptrCast(device.wrapper.dispatch.vkCreateImage),
+            .vkDestroyImage = @ptrCast(device.wrapper.dispatch.vkDestroyImage),
+            .vkGetBufferMemoryRequirements = @ptrCast(device.wrapper.dispatch.vkGetBufferMemoryRequirements),
+            .vkGetBufferMemoryRequirements2KHR = @ptrCast(device.wrapper.dispatch.vkGetBufferMemoryRequirements2),
+            .vkGetImageMemoryRequirements = @ptrCast(device.wrapper.dispatch.vkGetImageMemoryRequirements),
+            .vkGetImageMemoryRequirements2KHR = @ptrCast(device.wrapper.dispatch.vkGetImageMemoryRequirements2),
+            .vkMapMemory = @ptrCast(device.wrapper.dispatch.vkMapMemory),
+            .vkUnmapMemory = @ptrCast(device.wrapper.dispatch.vkUnmapMemory),
+            .vkInvalidateMappedMemoryRanges = @ptrCast(device.wrapper.dispatch.vkInvalidateMappedMemoryRanges),
+            .vkFlushMappedMemoryRanges = @ptrCast(device.wrapper.dispatch.vkFlushMappedMemoryRanges),
+            //.vkGetDeviceBufferMemoryRequirements = @ptrCast(device.wrapper.dispatch.vkGetDeviceBufferMemoryRequirements),
+            //.vkGetDeviceImageMemoryRequirements = @ptrCast(device.wrapper.dispatch.vkGetDeviceImageMemoryRequirements),
         },
     }, &allocator);
 
@@ -70,6 +86,71 @@ pub inline fn createAllocator(instance: vk.Instance, device: vk.Device, physDev:
 
 pub inline fn destroyAllocator(allocator: vma.VmaAllocator) void {
     vma.vmaDestroyAllocator(allocator);
+}
+
+pub inline fn createImage(allocator: vma.VmaAllocator, imageCreateInfo: *const vk.ImageCreateInfo, allocationCreateInfo: *const AllocationCreateInfo) !ImageAllocation {
+    var im: vk.Image = undefined;
+    var all: vma.VmaAllocation = undefined;
+    var allInfo: vma.VmaAllocationInfo = undefined;
+
+    if (vma.vmaCreateImage(
+        allocator,
+        @ptrCast(imageCreateInfo),
+        allocationCreateInfo,
+        @ptrCast(&im),
+        &all,
+        &allInfo,
+    ) != @intFromEnum(vk.Result.success)) {
+        return error.ImageAllocationFailed;
+    }
+
+    return ImageAllocation{ .image = im, .allocation = all };
+    //image.allInfo = allInfo;
+}
+
+pub inline fn destroyImage(allocator: Allocator, image: ImageAllocation) void {
+    vma.vmaDestroyImage(allocator, @ptrFromInt(@intFromEnum(image.image)), image.allocation);
+}
+
+pub inline fn createBuffer(allocator: Allocator, bufferCreateInfo: *const vk.BufferCreateInfo, allocationCreateInfo: *const AllocationCreateInfo) !BufferAllocation {
+    var buf: vk.Buffer = undefined;
+    var all: vma.VmaAllocation = undefined;
+    var allInfo: vma.VmaAllocationInfo = undefined;
+
+    if (vma.vmaCreateBuffer(
+        allocator,
+        @ptrCast(bufferCreateInfo),
+        allocationCreateInfo,
+        @ptrCast(&buf),
+        &all,
+        &allInfo,
+    ) != @intFromEnum(vk.Result.success)) {
+        return error.BufferAllocationFailed;
+    }
+
+    return BufferAllocation{ .buffer = buf, .allocation = all };
+}
+
+pub inline fn destroyBuffer(allocator: Allocator, buffer: BufferAllocation) void {
+    vma.vmaDestroyBuffer(allocator, @ptrFromInt(@intFromEnum(buffer.buffer)), buffer.allocation);
+}
+
+pub inline fn uploadMemory(allocator: vma.VmaAllocator, buffer: BufferAllocation, datas: []const []align(4) const u8, initialOffset: u32) !u32 {
+    var deviceMemory: *anyopaque = undefined;
+    if (vma.vmaMapMemory(allocator, buffer.allocation, @ptrCast(&deviceMemory)) != @intFromEnum(vk.Result.success)) {
+        return error.MemoryMapFailed;
+    }
+
+    var offset: u32 = initialOffset;
+    for (datas) |d| {
+        const destMemory = @as([*]u8, @ptrCast(deviceMemory))[offset .. offset + d.len];
+        std.mem.copyForwards(u8, destMemory, d);
+        offset += @intCast(d.len);
+    }
+
+    vma.vmaUnmapMemory(allocator, buffer.allocation);
+
+    return offset;
 }
 
 const apis: []const vk.ApiInfo = &.{
@@ -92,6 +173,7 @@ const apis: []const vk.ApiInfo = &.{
             .getPhysicalDeviceProperties = true,
             .getPhysicalDeviceMemoryProperties = true,
             .getPhysicalDeviceMemoryProperties2 = true,
+            .getPhysicalDeviceSurfaceCapabilitiesKHR = true,
         },
         .device_commands = .{
             .destroyDevice = true,
@@ -114,6 +196,50 @@ const apis: []const vk.ApiInfo = &.{
             .unmapMemory = true,
             .invalidateMappedMemoryRanges = true,
             .flushMappedMemoryRanges = true,
+            .createRenderPass = true,
+            .destroyRenderPass = true,
+            .createSwapchainKHR = true,
+            .destroySwapchainKHR = true,
+            .createImageView = true,
+            .destroyImageView = true,
+            .createFramebuffer = true,
+            .destroyFramebuffer = true,
+            .getDeviceQueue = true,
+            .getSwapchainImagesKHR = true,
+            .createCommandPool = true,
+            .destroyCommandPool = true,
+            .allocateCommandBuffers = true,
+            .createSemaphore = true,
+            .destroySemaphore = true,
+            .createDescriptorSetLayout = true,
+            .destroyDescriptorSetLayout = true,
+            .createPipelineLayout = true,
+            .destroyPipelineLayout = true,
+            .createShaderModule = true,
+            .destroyShaderModule = true,
+            .createGraphicsPipelines = true,
+            .destroyPipeline = true,
+            .createDescriptorPool = true,
+            .destroyDescriptorPool = true,
+            .allocateDescriptorSets = true,
+            .updateDescriptorSets = true,
+            .beginCommandBuffer = true,
+            .endCommandBuffer = true,
+            .queueSubmit = true,
+            .waitSemaphores = true,
+            .acquireNextImageKHR = true,
+            .resetCommandPool = true,
+            .cmdBeginRenderPass = true,
+            .cmdBindPipeline = true,
+            .cmdSetViewport = true,
+            .cmdSetScissor = true,
+            .cmdBindVertexBuffers = true,
+            .cmdBindIndexBuffer = true,
+            .cmdBindDescriptorSets = true,
+            .cmdDrawIndexed = true,
+            .cmdEndRenderPass = true,
+            .queuePresentKHR = true,
+            .cmdPipelineBarrier = true,
             //.getDeviceBufferMemoryRequirements = true,
             //.getDeviceImageMemoryRequirements = true,
         },
@@ -123,3 +249,6 @@ const apis: []const vk.ApiInfo = &.{
 pub const BaseDispatch = vk.BaseWrapper(apis);
 pub const InstanceDispatch = vk.InstanceWrapper(apis);
 pub const DeviceDispatch = vk.DeviceWrapper(apis);
+
+pub const InstProxy = vk.InstanceProxy(apis);
+pub const DevProxy = vk.DeviceProxy(apis);

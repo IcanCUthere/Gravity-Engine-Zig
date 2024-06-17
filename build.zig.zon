@@ -17,6 +17,7 @@
     .dependencies = .{
         .zphysics = .{ .path = "libs/zphysics" },
         .zglfw = .{ .path = "libs/zglfw" },
+        .zmath = .{ .path = "libs/zmath" },
         .system_sdk = .{ .path = "libs/system-sdk" },
 
         .vulkan_zig = .{
