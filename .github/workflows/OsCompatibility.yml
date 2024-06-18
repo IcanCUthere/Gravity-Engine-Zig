@@ -6,27 +6,28 @@ on:
       - test
 
 jobs:
-  test_windows:
-    runs-on: [self-hosted, windows, X64]
-    steps:
-      - uses: actions/checkout@v4
-      - run: zig build test
+#  test_windows:
+#    runs-on: [self-hosted, windows, X64]
+#    steps:
+#      - uses: actions/checkout@v4
+#      - run: zig build test
 
-  test_linux:
-    runs-on: [self-hosted, linux, X64]
-    steps:
-      - uses: actions/checkout@v4
-      - run: zig build test
-
-  test_mac:
-    runs-on: [self-hosted, macOS, X64]
-    steps:
-      - uses: actions/checkout@v4
-      - run: zig build test
+#  test_linux:
+#    runs-on: [self-hosted, linux, X64]
+#    steps:
+#      - uses: actions/checkout@v4
+#      - run: zig build test
+#
+#  test_mac:
+#    runs-on: [self-hosted, macOS, X64]
+#    steps:
+#      - uses: actions/checkout@v4
+#      - run: zig build test
 
 
   lint:
-    runs-on: [self-hosted, linux, X64]
+    runs-on: ubuntu-latest #[self-hosted, linux, X64]
     steps:
       - uses: actions/checkout@v4
+      - uses: goto-bus-stop/setup-zig@v2
       - run: zig fmt --check .

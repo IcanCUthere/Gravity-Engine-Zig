@@ -808,6 +808,12 @@ pub const Window = opaque {
         entered: i32,
     ) callconv(.C) void;
 
+    pub const setWindowCloseCallback = glfwSetWindowCloseCallback;
+    extern fn glfwSetWindowCloseCallback(window: *Window, callback: ?WindowCloseFn) ?WindowCloseFn;
+    pub const WindowCloseFn = *const fn (
+        window: *Window,
+    ) callconv(.C) void;
+
     /// `pub fn setCursor(window: *Window, cursor: ?*Cursor) void`
     pub const setCursor = glfwSetCursor;
     extern fn glfwSetCursor(window: *Window, cursor: ?*Cursor) void;

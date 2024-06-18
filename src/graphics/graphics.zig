@@ -1,8 +1,9 @@
 const std = @import("std");
-const glfw = @import("zglfw");
-const vk = @import("vulkan.zig");
-const mem = @import("memory.zig");
+const core = @import("core");
 const builtin = @import("builtin");
+
+pub const glfw = @import("zglfw");
+pub const vk = @import("vulkan.zig");
 
 pub usingnamespace vk;
 
@@ -49,8 +50,8 @@ pub fn init() !void {
     var devCount: u32 = undefined;
     _ = try instance.enumeratePhysicalDevices(&devCount, null);
 
-    const pdevs = try mem.fba.alloc(vk.PhysicalDevice, devCount);
-    defer mem.fba.free(pdevs);
+    const pdevs = try core.mem.fba.alloc(vk.PhysicalDevice, devCount);
+    defer core.mem.fba.free(pdevs);
 
     _ = try instance.enumeratePhysicalDevices(&devCount, pdevs.ptr);
 
@@ -66,7 +67,7 @@ pub fn init() !void {
     instance.getPhysicalDeviceQueueFamilyProperties(physicalDevice, &familyCount, null);
 
     const priority = [_]f32{1};
-    const queueCreateInfo = try mem.fba.alloc(vk.DeviceQueueCreateInfo, familyCount);
+    const queueCreateInfo = try core.mem.fba.alloc(vk.DeviceQueueCreateInfo, familyCount);
     for (queueCreateInfo, 0..) |*q, i| {
         q.* = vk.DeviceQueueCreateInfo{
             .queue_family_index = @intCast(i),
@@ -204,6 +205,168 @@ pub fn createRenderPass(viewportFormat: vk.Format) !vk.RenderPass {
     }, null);
 }
 
+pub fn createPipeline(layout: vk.PipelineLayout, renderPass: vk.RenderPass, vertModule: vk.ShaderModule, fragModule: vk.ShaderModule, width: u32, height: u32) !vk.Pipeline {
+    const stages = [_]vk.PipelineShaderStageCreateInfo{
+        vk.PipelineShaderStageCreateInfo{
+            .p_name = "main",
+            .stage = vk.ShaderStageFlags{ .vertex_bit = true },
+            .module = vertModule,
+        },
+        vk.PipelineShaderStageCreateInfo{
+            .p_name = "main",
+            .stage = vk.ShaderStageFlags{ .fragment_bit = true },
+            .module = fragModule,
+        },
+    };
+
+    const vertBindings = [_]vk.VertexInputBindingDescription{
+        vk.VertexInputBindingDescription{
+            .binding = 0,
+            .stride = 24,
+            .input_rate = vk.VertexInputRate.vertex,
+        },
+    };
+    const vertAttribs = [_]vk.VertexInputAttributeDescription{
+        vk.VertexInputAttributeDescription{
+            .binding = 0,
+            .location = 0,
+            .offset = 0,
+            .format = vk.Format.r32g32b32_sfloat,
+        },
+        //vk.VertexInputAttributeDescription{
+        //    .binding = 0,
+        //    .location = 1,
+        //    .offset = 16,
+        //    .format = vk.Format.r32g32_sfloat,
+        //},
+    };
+
+    const viewports = [_]vk.Viewport{
+        vk.Viewport{
+            .height = @floatFromInt(width),
+            .width = @floatFromInt(height),
+            .min_depth = 0.0,
+            .max_depth = 1.0,
+            .x = 0.0,
+            .y = 0.0,
+        },
+    };
+
+    const scissors = [_]vk.Rect2D{
+        vk.Rect2D{
+            .offset = .{ .x = 0, .y = 0 },
+            .extent = .{ .height = height, .width = width },
+        },
+    };
+
+    const stencilOpState = vk.StencilOpState{
+        .pass_op = vk.StencilOp.keep,
+        .fail_op = vk.StencilOp.keep,
+        .depth_fail_op = vk.StencilOp.keep,
+        .compare_op = vk.CompareOp.always,
+        .compare_mask = 0,
+        .reference = 0,
+        .write_mask = 0,
+    };
+
+    const colorBlendAttachments = [_]vk.PipelineColorBlendAttachmentState{
+        vk.PipelineColorBlendAttachmentState{
+            .blend_enable = vk.FALSE,
+            .color_blend_op = vk.BlendOp.add,
+            .alpha_blend_op = vk.BlendOp.add,
+            .color_write_mask = vk.ColorComponentFlags{ .a_bit = true, .r_bit = true, .g_bit = true, .b_bit = true },
+            .src_color_blend_factor = vk.BlendFactor.one,
+            .dst_color_blend_factor = vk.BlendFactor.zero,
+            .src_alpha_blend_factor = vk.BlendFactor.one,
+            .dst_alpha_blend_factor = vk.BlendFactor.zero,
+        },
+    };
+
+    const dynamicStates = [_]vk.DynamicState{
+        vk.DynamicState.viewport,
+        vk.DynamicState.scissor,
+    };
+
+    var pipeline: vk.Pipeline = undefined;
+
+    const createInfo = [_]vk.GraphicsPipelineCreateInfo{
+        vk.GraphicsPipelineCreateInfo{
+            .layout = layout,
+            .render_pass = renderPass,
+            .subpass = 0,
+            .base_pipeline_index = 0,
+            .base_pipeline_handle = vk.Pipeline.null_handle,
+            .p_stages = &stages,
+            .stage_count = @intCast(stages.len),
+            .p_vertex_input_state = &vk.PipelineVertexInputStateCreateInfo{
+                .p_vertex_attribute_descriptions = &vertAttribs,
+                .vertex_attribute_description_count = @intCast(vertAttribs.len),
+                .p_vertex_binding_descriptions = &vertBindings,
+                .vertex_binding_description_count = @intCast(vertBindings.len),
+            },
+            .p_input_assembly_state = &vk.PipelineInputAssemblyStateCreateInfo{
+                .primitive_restart_enable = vk.FALSE,
+                .topology = vk.PrimitiveTopology.triangle_list,
+            },
+            .p_tessellation_state = &vk.PipelineTessellationStateCreateInfo{
+                .patch_control_points = 0,
+            },
+            .p_viewport_state = &vk.PipelineViewportStateCreateInfo{
+                .p_viewports = &viewports,
+                .viewport_count = @intCast(viewports.len),
+                .p_scissors = &scissors,
+                .scissor_count = @intCast(scissors.len),
+            },
+            .p_rasterization_state = &vk.PipelineRasterizationStateCreateInfo{
+                .polygon_mode = vk.PolygonMode.fill,
+                .cull_mode = vk.CullModeFlags{ .back_bit = true },
+                .front_face = vk.FrontFace.counter_clockwise,
+                .depth_bias_enable = vk.FALSE,
+                .depth_clamp_enable = vk.FALSE,
+                .rasterizer_discard_enable = vk.FALSE,
+                .depth_bias_clamp = 0.0,
+                .depth_bias_constant_factor = 0.0,
+                .depth_bias_slope_factor = 0.0,
+                .line_width = 1.0,
+            },
+            .p_multisample_state = &vk.PipelineMultisampleStateCreateInfo{
+                .rasterization_samples = vk.SampleCountFlags{ .@"1_bit" = true },
+                .alpha_to_coverage_enable = vk.FALSE,
+                .alpha_to_one_enable = vk.FALSE,
+                .sample_shading_enable = vk.FALSE,
+                .min_sample_shading = 1.0,
+                .p_sample_mask = null,
+            },
+            .p_depth_stencil_state = &vk.PipelineDepthStencilStateCreateInfo{
+                .depth_test_enable = vk.TRUE,
+                .depth_write_enable = vk.TRUE,
+                .depth_bounds_test_enable = vk.FALSE,
+                .stencil_test_enable = vk.FALSE,
+                .depth_compare_op = vk.CompareOp.less,
+                .min_depth_bounds = 0.0,
+                .max_depth_bounds = 1.0,
+                .front = stencilOpState,
+                .back = stencilOpState,
+            },
+            .p_color_blend_state = &vk.PipelineColorBlendStateCreateInfo{
+                .logic_op_enable = vk.FALSE,
+                .logic_op = vk.LogicOp.copy,
+                .p_attachments = &colorBlendAttachments,
+                .attachment_count = @intCast(colorBlendAttachments.len),
+                .blend_constants = [4]f32{ 1.0, 1.0, 1.0, 1.0 },
+            },
+            .p_dynamic_state = &vk.PipelineDynamicStateCreateInfo{
+                .p_dynamic_states = &dynamicStates,
+                .dynamic_state_count = @intCast(dynamicStates.len),
+            },
+        },
+    };
+
+    _ = try device.createGraphicsPipelines(vk.PipelineCache.null_handle, 1, @ptrCast(&createInfo), null, @ptrCast(&pipeline));
+
+    return pipeline;
+}
+
 fn checkSuitable(pdev: vk.PhysicalDevice) !?vk.PhysicalDevice {
     if (try checkExtensionSupport(pdev)) {
         return pdev;
@@ -215,8 +378,8 @@ fn checkSuitable(pdev: vk.PhysicalDevice) !?vk.PhysicalDevice {
 fn getGraphicsFamily(pdev: vk.PhysicalDevice) !u32 {
     var familyCount: u32 = undefined;
     instance.getPhysicalDeviceQueueFamilyProperties(pdev, &familyCount, null);
-    const families = try mem.fba.alloc(vk.QueueFamilyProperties, familyCount);
-    defer mem.fba.free(families);
+    const families = try core.mem.fba.alloc(vk.QueueFamilyProperties, familyCount);
+    defer core.mem.fba.free(families);
     instance.getPhysicalDeviceQueueFamilyProperties(pdev, &familyCount, families.ptr);
 
     for (families, 0..) |properties, i| {
@@ -232,8 +395,8 @@ fn checkExtensionSupport(pdev: vk.PhysicalDevice) !bool {
     var count: u32 = undefined;
     _ = try instance.enumerateDeviceExtensionProperties(pdev, null, &count, null);
 
-    const propsv = try mem.fba.alloc(vk.ExtensionProperties, count);
-    defer mem.fba.free(propsv);
+    const propsv = try core.mem.fba.alloc(vk.ExtensionProperties, count);
+    defer core.mem.fba.free(propsv);
 
     _ = try instance.enumerateDeviceExtensionProperties(pdev, null, &count, propsv.ptr);
 

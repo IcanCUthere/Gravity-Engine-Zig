@@ -1,61 +1,7 @@
 const std = @import("std");
-const glfw = @import("zglfw");
-const gfx = @import("graphics.zig");
-const mem = @import("memory.zig");
-
-pub fn init(title: [:0]const u8, width: u32, height: u32, imageCount: u32, layerCount: u32) !Viewport {
-    glfw.windowHint(glfw.WindowHint.client_api, @intFromEnum(glfw.ClientApi.no_api));
-    //glfw.windowHint(glfw.WindowHint.decorated, 0);
-    var window = try glfw.Window.create(@intCast(width), @intCast(height), title, null);
-
-    _ = window.setFramebufferSizeCallback(struct {
-        fn resize(wndw: *glfw.Window, _: i32, _: i32) callconv(.C) void {
-            while (glfw.Window.getFramebufferSize(wndw)[0] == 0 or glfw.Window.getFramebufferSize(wndw)[1] == 0) {
-                glfw.waitEvents();
-            }
-        }
-    }.resize);
-
-    const surface = try gfx.createSurface(gfx.instance, window);
-
-    var viewport = Viewport{
-        ._window = window,
-        ._surface = surface,
-        ._width = width,
-        ._height = height,
-        ._imageCount = imageCount,
-        ._layerCount = layerCount,
-        ._renderQueueIndex = gfx.renderFamily,
-    };
-
-    var family_count: u32 = undefined;
-    gfx.instance.getPhysicalDeviceQueueFamilyProperties(gfx.physicalDevice, &family_count, null);
-    const families = try mem.fba.alloc(gfx.QueueFamilyProperties, family_count);
-    defer mem.fba.free(families);
-    gfx.instance.getPhysicalDeviceQueueFamilyProperties(gfx.physicalDevice, &family_count, families.ptr);
-
-    if (try gfx.instance.getPhysicalDeviceSurfaceSupportKHR(gfx.physicalDevice, viewport._renderQueueIndex, viewport._surface) == gfx.TRUE) {
-        viewport._presentQueue = gfx.device.getDeviceQueue(viewport._renderQueueIndex, 0);
-        viewport._presentQueueIndex = viewport._renderQueueIndex;
-    } else {
-        for (families, 0..) |_, i| {
-            if (try gfx.instance.getPhysicalDeviceSurfaceSupportKHR(gfx.physicalDevice, @intCast(i), viewport._surface) == gfx.TRUE) {
-                viewport._presentQueue = gfx.device.getDeviceQueue(viewport._renderQueueIndex, 0);
-                viewport._presentQueueIndex = @intCast(i);
-                break;
-            }
-        }
-    }
-
-    viewport._swapchainData = try mem.fba.alloc(Viewport.SwapchainData, viewport._imageCount);
-    for (viewport._swapchainData) |*data| {
-        data.* = Viewport.SwapchainData.init();
-    }
-
-    viewport._format = (try viewport._pickFormat()).format;
-
-    return viewport;
-}
+const gfx = @import("graphics");
+const core = @import("core");
+const evnt = @import("event.zig");
 
 pub const Viewport = struct {
     const Self = @This();
@@ -80,12 +26,14 @@ pub const Viewport = struct {
             gfx.destroyImage(gfx.vkAllocator, self.depthBuffer);
             gfx.device.destroySwapchainKHR(self.swapchain, null);
 
-            mem.fba.free(self.framebuffers);
-            mem.fba.free(self.imageViews);
+            core.mem.fba.free(self.framebuffers);
+            core.mem.fba.free(self.imageViews);
+
+            self.* = SwapchainData.init();
         }
     };
 
-    _window: *glfw.Window = undefined,
+    _window: *gfx.glfw.Window = undefined,
     _renderPass: gfx.RenderPass = undefined,
     _surface: gfx.SurfaceKHR = undefined,
     _format: gfx.Format = undefined,
@@ -106,7 +54,7 @@ pub const Viewport = struct {
         return self._surface;
     }
 
-    pub fn getWindow(self: *Self) glfw.Window {
+    pub fn getWindow(self: *Self) gfx.glfw.Window {
         return self._window;
     }
 
@@ -136,18 +84,85 @@ pub const Viewport = struct {
         self._renderPass = renderPass;
     }
 
+    pub fn init(title: [:0]const u8, width: u32, height: u32, imageCount: u32, layerCount: u32, T: type, userPointer: *T) !Viewport {
+        gfx.glfw.windowHint(gfx.glfw.WindowHint.client_api, @intFromEnum(gfx.glfw.ClientApi.no_api));
+        //glfw.windowHint(glfw.WindowHint.decorated, 0);
+        var window = try gfx.glfw.Window.create(@intCast(width), @intCast(height), title, null);
+
+        const surface = try gfx.createSurface(gfx.instance, window);
+
+        var viewport = Viewport{
+            ._window = window,
+            ._surface = surface,
+            ._width = width,
+            ._height = height,
+            ._imageCount = imageCount,
+            ._layerCount = layerCount,
+            ._renderQueueIndex = gfx.renderFamily,
+        };
+
+        var family_count: u32 = undefined;
+        gfx.instance.getPhysicalDeviceQueueFamilyProperties(gfx.physicalDevice, &family_count, null);
+        const families = try core.mem.fba.alloc(gfx.QueueFamilyProperties, family_count);
+        defer core.mem.fba.free(families);
+        gfx.instance.getPhysicalDeviceQueueFamilyProperties(gfx.physicalDevice, &family_count, families.ptr);
+
+        if (try gfx.instance.getPhysicalDeviceSurfaceSupportKHR(gfx.physicalDevice, viewport._renderQueueIndex, viewport._surface) == gfx.TRUE) {
+            viewport._presentQueue = gfx.device.getDeviceQueue(viewport._renderQueueIndex, 0);
+            viewport._presentQueueIndex = viewport._renderQueueIndex;
+        } else {
+            for (families, 0..) |_, i| {
+                if (try gfx.instance.getPhysicalDeviceSurfaceSupportKHR(gfx.physicalDevice, @intCast(i), viewport._surface) == gfx.TRUE) {
+                    viewport._presentQueue = gfx.device.getDeviceQueue(viewport._renderQueueIndex, 0);
+                    viewport._presentQueueIndex = @intCast(i);
+                    break;
+                }
+            }
+        }
+
+        viewport._swapchainData = try core.mem.fba.alloc(Viewport.SwapchainData, viewport._imageCount);
+        for (viewport._swapchainData) |*data| {
+            data.* = Viewport.SwapchainData.init();
+        }
+
+        viewport._format = (try viewport._pickFormat()).format;
+
+        window.setUserPointer(userPointer);
+
+        _ = window.setFramebufferSizeCallback(struct {
+            fn resize(wndw: *gfx.glfw.Window, _: i32, _: i32) callconv(.C) void {
+                var extent = gfx.glfw.Window.getFramebufferSize(wndw);
+
+                while (extent[0] == 0 or extent[1] == 0) {
+                    gfx.glfw.waitEvents();
+                    extent = gfx.glfw.Window.getFramebufferSize(wndw);
+                }
+
+                wndw.getUserPointer(T).?.callback(evnt.Event{ .resizeEvent = evnt.WindowResizeEvent{ .width = @intCast(extent[0]), .height = @intCast(extent[1]) } });
+            }
+        }.resize);
+
+        _ = window.setWindowCloseCallback(struct {
+            fn close(wndw: *gfx.glfw.Window) callconv(.C) void {
+                wndw.getUserPointer(T).?.callback(evnt.Event{ .closeEvent = evnt.WindowCloseEvent{} });
+            }
+        }.close);
+
+        return viewport;
+    }
+
     pub fn deinit(self: *Self) void {
         for (self._swapchainData) |*data| {
             data.deinit();
         }
-        mem.fba.free(self._swapchainData);
+        core.mem.fba.free(self._swapchainData);
 
         gfx.instance.destroySurfaceKHR(self._surface, null);
         self._window.destroy();
     }
 
     pub fn nextFrame(self: *Self, semaphore: gfx.Semaphore) !void {
-        glfw.pollEvents();
+        gfx.glfw.pollEvents();
 
         if (self._resized) {
             const nextIndex: u32 = (self._currentSwapchain + 1) % self._imageCount;
@@ -187,10 +202,10 @@ pub const Viewport = struct {
 
         var imageCount: u32 = undefined;
         _ = try gfx.device.getSwapchainImagesKHR(self._swapchainData[index].swapchain, &imageCount, null);
-        const swapchainImages = try mem.fba.alloc(gfx.Image, imageCount);
-        self._swapchainData[index].imageViews = try mem.fba.alloc(gfx.ImageView, imageCount + 1);
-        self._swapchainData[index].framebuffers = try mem.fba.alloc(gfx.Framebuffer, imageCount);
-        defer mem.fba.free(swapchainImages);
+        const swapchainImages = try core.mem.fba.alloc(gfx.Image, imageCount);
+        self._swapchainData[index].imageViews = try core.mem.fba.alloc(gfx.ImageView, imageCount + 1);
+        self._swapchainData[index].framebuffers = try core.mem.fba.alloc(gfx.Framebuffer, imageCount);
+        defer core.mem.fba.free(swapchainImages);
         _ = try gfx.device.getSwapchainImagesKHR(self._swapchainData[index].swapchain, &imageCount, swapchainImages.ptr);
 
         self._swapchainData[index].depthBuffer = try gfx.createImage(gfx.vkAllocator, &.{
@@ -266,8 +281,8 @@ pub const Viewport = struct {
     fn _pickFormat(self: *Self) !gfx.SurfaceFormatKHR {
         var formatCount: u32 = undefined;
         _ = try gfx.instance.getPhysicalDeviceSurfaceFormatsKHR(gfx.physicalDevice, self._surface, &formatCount, null);
-        const surfaceFormats = try mem.fba.alloc(gfx.SurfaceFormatKHR, formatCount);
-        defer mem.fba.free(surfaceFormats);
+        const surfaceFormats = try core.mem.fba.alloc(gfx.SurfaceFormatKHR, formatCount);
+        defer core.mem.fba.free(surfaceFormats);
         _ = try gfx.instance.getPhysicalDeviceSurfaceFormatsKHR(gfx.physicalDevice, self._surface, &formatCount, surfaceFormats.ptr);
         return if (surfaceFormats[0].format == gfx.Format.undefined) gfx.SurfaceFormatKHR{ .format = gfx.Format.r8g8b8a8_unorm, .color_space = gfx.ColorSpaceKHR.srgb_nonlinear_khr } else surfaceFormats[0];
     }
@@ -279,8 +294,8 @@ pub const Viewport = struct {
 
         var presentModeCount: u32 = undefined;
         _ = try gfx.instance.getPhysicalDeviceSurfacePresentModesKHR(gfx.physicalDevice, self._surface, &presentModeCount, null);
-        const presentModes = try mem.fba.alloc(gfx.PresentModeKHR, presentModeCount);
-        defer mem.fba.free(presentModes);
+        const presentModes = try core.mem.fba.alloc(gfx.PresentModeKHR, presentModeCount);
+        defer core.mem.fba.free(presentModes);
         _ = try gfx.instance.getPhysicalDeviceSurfacePresentModesKHR(gfx.physicalDevice, self._surface, &presentModeCount, presentModes.ptr);
 
         const capabilities = try gfx.instance.getPhysicalDeviceSurfaceCapabilitiesKHR(gfx.physicalDevice, self._surface);
