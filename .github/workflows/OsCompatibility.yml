@@ -26,7 +26,8 @@ jobs:
 
 
   lint:
-    runs-on: ubunut-latest #[self-hosted, linux, X64]
+    runs-on: ubuntu-latest #[self-hosted, linux, X64]
     steps:
       - uses: actions/checkout@v4
+      - uses: goto-bus-stop/setup-zig@v2
       - run: zig fmt --check .
