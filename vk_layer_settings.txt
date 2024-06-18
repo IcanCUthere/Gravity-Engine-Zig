@@ -257,25 +257,25 @@ khronos_validation.validate_best_practices = true
 # =====================
 # <LayerIdentifier>.validate_best_practices_arm
 # Outputs warnings for spec-conforming but non-ideal code on ARM GPUs.
-khronos_validation.validate_best_practices_arm = true
+khronos_validation.validate_best_practices_arm = false
 
 # AMD-specific best practices
 # =====================
 # <LayerIdentifier>.validate_best_practices_amd
 # Outputs warnings for spec-conforming but non-ideal code on AMD GPUs.
-khronos_validation.validate_best_practices_amd = true
+khronos_validation.validate_best_practices_amd = false
 
 # IMG-specific best practices
 # =====================
 # <LayerIdentifier>.validate_best_practices_img
 # Outputs warnings for spec-conforming but non-ideal code on Imagination GPUs.
-khronos_validation.validate_best_practices_img = true
+khronos_validation.validate_best_practices_img = false
 
 # NVIDIA-specific best practices
 # =====================
 # <LayerIdentifier>.validate_best_practices_nvidia
 # Outputs warnings for spec-conforming but non-ideal code on NVIDIA GPUs.
-khronos_validation.validate_best_practices_nvidia = true
+khronos_validation.validate_best_practices_nvidia = false
 
 # Debug Action
 # =====================
@@ -294,7 +294,7 @@ khronos_validation.debug_action = VK_DBG_LAYER_ACTION_LOG_MSG,VK_DBG_LAYER_ACTIO
 # <LayerIdentifier>.report_flags
 # Comma-delineated list of options specifying the types of messages to be
 # reported
-khronos_validation.report_flags = error,perf,warn,info
+khronos_validation.report_flags = error,perf,warn #,info
 
 # Limit Duplicated Messages
 # =====================

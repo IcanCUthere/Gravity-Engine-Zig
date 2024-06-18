@@ -18,7 +18,10 @@
         .zphysics = .{ .path = "libs/zphysics" },
         .zglfw = .{ .path = "libs/zglfw" },
         .zmath = .{ .path = "libs/zmath" },
+        .zmesh = .{ .path = "libs/zmesh" },
         .system_sdk = .{ .path = "libs/system-sdk" },
+
+        .graphics = .{ .path = "src/graphics" },
 
         .vulkan_zig = .{
             .url = "https://github.com/Snektron/vulkan-zig/archive/a44d86899b5d8e5656c8e80695d1d9f4886540a2.tar.gz",
