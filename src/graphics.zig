@@ -105,10 +105,10 @@ pub fn deinit() void {
     glfw.terminate();
 }
 
-pub fn createRenderPass() !vk.RenderPass {
+pub fn createRenderPass(viewportFormat: vk.Format) !vk.RenderPass {
     const attachmentDescriptions = [_]vk.AttachmentDescription{
         vk.AttachmentDescription{
-            .format = vk.Format.b8g8r8a8_unorm,
+            .format = viewportFormat,
             .samples = vk.SampleCountFlags{ .@"1_bit" = true },
             .load_op = vk.AttachmentLoadOp.clear,
             .store_op = vk.AttachmentStoreOp.store,

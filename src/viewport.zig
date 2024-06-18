@@ -3,7 +3,7 @@ const glfw = @import("zglfw");
 const gfx = @import("graphics.zig");
 const mem = @import("memory.zig");
 
-pub fn init(title: [:0]const u8, width: u32, height: u32, renderPass: gfx.RenderPass, imageCount: u32, layerCount: u32) !Viewport {
+pub fn init(title: [:0]const u8, width: u32, height: u32, imageCount: u32, layerCount: u32) !Viewport {
     glfw.windowHint(glfw.WindowHint.client_api, @intFromEnum(glfw.ClientApi.no_api));
     //glfw.windowHint(glfw.WindowHint.decorated, 0);
     var window = try glfw.Window.create(@intCast(width), @intCast(height), title, null);
@@ -25,7 +25,6 @@ pub fn init(title: [:0]const u8, width: u32, height: u32, renderPass: gfx.Render
         ._height = height,
         ._imageCount = imageCount,
         ._layerCount = layerCount,
-        ._renderPass = renderPass,
         ._renderQueueIndex = gfx.renderFamily,
     };
 
@@ -53,7 +52,7 @@ pub fn init(title: [:0]const u8, width: u32, height: u32, renderPass: gfx.Render
         data.* = Viewport.SwapchainData.init();
     }
 
-    try viewport._initSwapchainData(0);
+    viewport._format = (try viewport._pickFormat()).format;
 
     return viewport;
 }
@@ -98,7 +97,7 @@ pub const Viewport = struct {
     _height: u32 = undefined,
     _imageCount: u32 = undefined,
     _layerCount: u32 = undefined,
-    _resized: bool = false,
+    _resized: bool = true,
 
     _swapchainData: []SwapchainData = ([_]SwapchainData{})[0..],
     _currentSwapchain: u32 = 0,
@@ -112,7 +111,7 @@ pub const Viewport = struct {
     }
 
     pub fn getImageCount(self: Self) u32 {
-        return self._imageCount;
+        return @intCast(self._swapchainData[self._currentSwapchain].imageViews.len);
     }
 
     pub fn getHeight(self: Self) u32 {
@@ -123,8 +122,18 @@ pub const Viewport = struct {
         return self._width;
     }
 
+    pub fn getFormat(self: Self) gfx.Format {
+        return self._format;
+    }
+
+    //Not available until first nextFram() call
     pub fn getFramebuffer(self: Self) gfx.Framebuffer {
         return self._swapchainData[self._currentSwapchain].framebuffers[self._swapchainData[self._currentSwapchain].presentIndex];
+    }
+
+    //Must be set before first nextFrame() call
+    pub fn setRenderPass(self: *Self, renderPass: gfx.RenderPass) void {
+        self._renderPass = renderPass;
     }
 
     pub fn deinit(self: *Self) void {
@@ -176,12 +185,13 @@ pub const Viewport = struct {
 
         self._swapchainData[index].swapchain = try self._createSwapchain(gfx.SwapchainKHR.null_handle);
 
-        _ = try gfx.device.getSwapchainImagesKHR(self._swapchainData[index].swapchain, &self._imageCount, null);
-        const swapchainImages = try mem.fba.alloc(gfx.Image, self._imageCount);
-        self._swapchainData[index].imageViews = try mem.fba.alloc(gfx.ImageView, self._imageCount + 1);
-        self._swapchainData[index].framebuffers = try mem.fba.alloc(gfx.Framebuffer, self._imageCount);
+        var imageCount: u32 = undefined;
+        _ = try gfx.device.getSwapchainImagesKHR(self._swapchainData[index].swapchain, &imageCount, null);
+        const swapchainImages = try mem.fba.alloc(gfx.Image, imageCount);
+        self._swapchainData[index].imageViews = try mem.fba.alloc(gfx.ImageView, imageCount + 1);
+        self._swapchainData[index].framebuffers = try mem.fba.alloc(gfx.Framebuffer, imageCount);
         defer mem.fba.free(swapchainImages);
-        _ = try gfx.device.getSwapchainImagesKHR(self._swapchainData[index].swapchain, &self._imageCount, swapchainImages.ptr);
+        _ = try gfx.device.getSwapchainImagesKHR(self._swapchainData[index].swapchain, &imageCount, swapchainImages.ptr);
 
         self._swapchainData[index].depthBuffer = try gfx.createImage(gfx.vkAllocator, &.{
             .image_type = gfx.ImageType.@"2d",
@@ -200,7 +210,7 @@ pub const Viewport = struct {
             .usage = gfx.vma.VMA_MEMORY_USAGE_GPU_ONLY,
         });
 
-        self._swapchainData[index].imageViews[self._imageCount] = try gfx.device.createImageView(&.{
+        self._swapchainData[index].imageViews[imageCount] = try gfx.device.createImageView(&.{
             .image = self._swapchainData[index].depthBuffer.image,
             .view_type = gfx.ImageViewType.@"2d",
             .format = gfx.Format.d16_unorm,
@@ -243,7 +253,7 @@ pub const Viewport = struct {
                 .render_pass = self._renderPass,
                 .p_attachments = &.{
                     self._swapchainData[index].imageViews[i],
-                    self._swapchainData[index].imageViews[self._imageCount],
+                    self._swapchainData[index].imageViews[imageCount],
                 },
                 .attachment_count = 2,
                 .width = self._width,
@@ -253,13 +263,19 @@ pub const Viewport = struct {
         }
     }
 
-    fn _createSwapchain(self: *Self, oldSwapchain: gfx.SwapchainKHR) !gfx.SwapchainKHR {
+    fn _pickFormat(self: *Self) !gfx.SurfaceFormatKHR {
         var formatCount: u32 = undefined;
         _ = try gfx.instance.getPhysicalDeviceSurfaceFormatsKHR(gfx.physicalDevice, self._surface, &formatCount, null);
         const surfaceFormats = try mem.fba.alloc(gfx.SurfaceFormatKHR, formatCount);
         defer mem.fba.free(surfaceFormats);
         _ = try gfx.instance.getPhysicalDeviceSurfaceFormatsKHR(gfx.physicalDevice, self._surface, &formatCount, surfaceFormats.ptr);
-        self._format = if (surfaceFormats[0].format == gfx.Format.undefined) gfx.Format.r8g8b8a8_unorm else surfaceFormats[0].format;
+        return if (surfaceFormats[0].format == gfx.Format.undefined) gfx.SurfaceFormatKHR{ .format = gfx.Format.r8g8b8a8_unorm, .color_space = gfx.ColorSpaceKHR.srgb_nonlinear_khr } else surfaceFormats[0];
+    }
+
+    fn _createSwapchain(self: *Self, oldSwapchain: gfx.SwapchainKHR) !gfx.SwapchainKHR {
+        const surfaceFormat = try self._pickFormat();
+
+        self._format = surfaceFormat.format;
 
         var presentModeCount: u32 = undefined;
         _ = try gfx.instance.getPhysicalDeviceSurfacePresentModesKHR(gfx.physicalDevice, self._surface, &presentModeCount, null);
@@ -319,7 +335,7 @@ pub const Viewport = struct {
             .image_usage = gfx.ImageUsageFlags{ .color_attachment_bit = true },
             .image_extent = gfx.Extent2D{ .height = self._height, .width = self._width },
             .image_format = self._format,
-            .image_color_space = if (surfaceFormats[0].format == gfx.Format.undefined) gfx.ColorSpaceKHR.srgb_nonlinear_khr else surfaceFormats[0].color_space,
+            .image_color_space = surfaceFormat.color_space,
             .composite_alpha = desiredAlphaFlags.intersect(capabilities.supported_composite_alpha),
             .queue_family_index_count = if (self._renderQueueIndex == self._presentQueueIndex) 1 else 2,
             .p_queue_family_indices = if (self._renderQueueIndex == self._presentQueueIndex) &.{self._renderQueueIndex} else &.{ self._renderQueueIndex, self._presentQueueIndex },

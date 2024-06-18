@@ -28,23 +28,27 @@ const indices = [12]u32{
     4, 5, 7,
 };
 
+const bufferedImageCount = 3;
+
 pub fn main() !void {
     try gfx.init();
     defer gfx.deinit();
 
-    const renderPass = try gfx.createRenderPass();
-    defer gfx.device.destroyRenderPass(renderPass, null);
-
-    var window = try viewport.init("Gravity Control", 1000, 1000, renderPass, 3, 1);
+    var window = try viewport.init("Gravity Control", 1000, 1000, 3, 1);
     defer window.deinit();
 
-    const cmdPools = try mem.fba.alloc(gfx.CommandPool, window.getImageCount());
+    const renderPass = try gfx.createRenderPass(window.getFormat());
+    defer gfx.device.destroyRenderPass(renderPass, null);
+
+    window.setRenderPass(renderPass);
+
+    const cmdPools = try mem.fba.alloc(gfx.CommandPool, bufferedImageCount);
     defer mem.fba.free(cmdPools);
 
-    const cmdLists = try mem.fba.alloc(gfx.CommandBuffer, window.getImageCount());
+    const cmdLists = try mem.fba.alloc(gfx.CommandBuffer, bufferedImageCount);
     defer mem.fba.free(cmdLists);
 
-    const semaphores = try mem.fba.alloc(gfx.Semaphore, window.getImageCount());
+    const semaphores = try mem.fba.alloc(gfx.Semaphore, bufferedImageCount);
     defer mem.fba.free(semaphores);
 
     for (cmdPools, cmdLists, semaphores) |*pool, *list, *sem| {
@@ -299,15 +303,18 @@ pub fn main() !void {
 
         try gfx.device.resetCommandPool(cmdPools[imageIndex], .{});
 
-        try gfx.device.beginCommandBuffer(cmdLists[imageIndex], &gfx.CommandBufferBeginInfo{ .flags = gfx.CommandBufferUsageFlags{ .one_time_submit_bit = true }, .p_inheritance_info = &gfx.CommandBufferInheritanceInfo{
-            .render_pass = renderPass,
-            .framebuffer = window.getFramebuffer(),
-            .subpass = 0,
-            .occlusion_query_enable = gfx.FALSE,
-        } });
+        try gfx.device.beginCommandBuffer(cmdLists[imageIndex], &gfx.CommandBufferBeginInfo{
+            .flags = gfx.CommandBufferUsageFlags{ .one_time_submit_bit = true },
+            .p_inheritance_info = &gfx.CommandBufferInheritanceInfo{
+                .render_pass = renderPass,
+                .framebuffer = window.getFramebuffer(),
+                .subpass = 0,
+                .occlusion_query_enable = gfx.FALSE,
+            },
+        });
 
         const clearValues = [_]gfx.ClearValue{
-            gfx.ClearValue{ .color = .{ .float_32 = [4]f32{ 0.0, 0.0, 0.0, 1.0 } } },
+            gfx.ClearValue{ .color = .{ .float_32 = [4]f32{ 0.0, 0.0, 0.0, 0.0 } } },
             gfx.ClearValue{ .depth_stencil = .{ .depth = 1.0, .stencil = 0 } },
         };
 
@@ -398,7 +405,7 @@ pub fn main() !void {
 
         try window.presentImage(&semaphores[imageIndex], 1);
 
-        imageIndex = (imageIndex + 1) % window.getImageCount();
+        imageIndex = (imageIndex + 1) % bufferedImageCount;
     }
 
     _ = try gfx.device.waitSemaphores(&gfx.SemaphoreWaitInfo{
