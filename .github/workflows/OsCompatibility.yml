@@ -1,9 +1,8 @@
-name: zig_build_and_test
+name: OS Comatibility tests
 
 on: 
   push:
     branches:
-      - main
       - test
 
 jobs:
