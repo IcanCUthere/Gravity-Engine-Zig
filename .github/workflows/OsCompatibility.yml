@@ -5,7 +5,7 @@ on:
     branches:
       - test
 
-#jobs:
+jobs:
 #  test_windows:
 #    runs-on: [self-hosted, windows, X64]
 #    steps:
@@ -26,7 +26,7 @@ on:
 
 
   lint:
-    runs-on: [self-hosted, linux, X64]
+    runs-on: ubunut-latest #[self-hosted, linux, X64]
     steps:
       - uses: actions/checkout@v4
       - run: zig fmt --check .
