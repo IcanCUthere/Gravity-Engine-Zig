@@ -26,8 +26,8 @@ pub const Viewport = struct {
             gfx.destroyImage(gfx.vkAllocator, self.depthBuffer);
             gfx.device.destroySwapchainKHR(self.swapchain, null);
 
-            core.mem.fba.free(self.framebuffers);
-            core.mem.fba.free(self.imageViews);
+            core.mem.ha.free(self.framebuffers);
+            core.mem.ha.free(self.imageViews);
 
             self.* = SwapchainData.init();
         }
@@ -84,7 +84,7 @@ pub const Viewport = struct {
         self._renderPass = renderPass;
     }
 
-    pub fn init(title: [:0]const u8, width: u32, height: u32, imageCount: u32, layerCount: u32, T: type, userPointer: *T) !Viewport {
+    pub fn init(title: [:0]const u8, width: u32, height: u32, imageCount: u32, layerCount: u32, callbackFn: evnt.CallbackFunction) !Viewport {
         gfx.glfw.windowHint(gfx.glfw.WindowHint.client_api, @intFromEnum(gfx.glfw.ClientApi.no_api));
         //glfw.windowHint(glfw.WindowHint.decorated, 0);
         var window = try gfx.glfw.Window.create(@intCast(width), @intCast(height), title, null);
@@ -120,33 +120,65 @@ pub const Viewport = struct {
             }
         }
 
-        viewport._swapchainData = try core.mem.fba.alloc(Viewport.SwapchainData, viewport._imageCount);
+        viewport._swapchainData = try core.mem.ha.alloc(Viewport.SwapchainData, viewport._imageCount);
         for (viewport._swapchainData) |*data| {
             data.* = Viewport.SwapchainData.init();
         }
 
         viewport._format = (try viewport._pickFormat()).format;
 
-        window.setUserPointer(userPointer);
+        window.setUserPointer(@ptrCast(@constCast(&callbackFn)));
 
         _ = window.setFramebufferSizeCallback(struct {
             fn resize(wndw: *gfx.glfw.Window, _: i32, _: i32) callconv(.C) void {
                 var extent = gfx.glfw.Window.getFramebufferSize(wndw);
 
                 while (extent[0] == 0 or extent[1] == 0) {
-                    gfx.glfw.waitEvents();
                     extent = gfx.glfw.Window.getFramebufferSize(wndw);
+                    gfx.glfw.waitEvents();
                 }
 
-                wndw.getUserPointer(T).?.callback(evnt.Event{ .resizeEvent = evnt.WindowResizeEvent{ .width = @intCast(extent[0]), .height = @intCast(extent[1]) } });
+                wndw.getUserPointer(evnt.CallbackFunction).?(evnt.Event{ .resizeEvent = evnt.WindowResizeEvent{
+                    .width = @intCast(extent[0]),
+                    .height = @intCast(extent[1]),
+                } });
             }
         }.resize);
 
         _ = window.setWindowCloseCallback(struct {
             fn close(wndw: *gfx.glfw.Window) callconv(.C) void {
-                wndw.getUserPointer(T).?.callback(evnt.Event{ .closeEvent = evnt.WindowCloseEvent{} });
+                wndw.getUserPointer(evnt.CallbackFunction).?(evnt.Event{ .closeEvent = evnt.WindowCloseEvent{} });
             }
         }.close);
+
+        _ = window.setKeyCallback(struct {
+            fn keyInput(wndw: *gfx.glfw.Window, key: gfx.glfw.Key, _: i32, action: gfx.glfw.Action, _: gfx.glfw.Mods) callconv(.C) void {
+                wndw.getUserPointer(evnt.CallbackFunction).?(evnt.Event{ .keyboard = evnt.KeyboardEvent{
+                    .inputType = .Keyboard,
+                    .key = @enumFromInt(@intFromEnum(key)),
+                    .action = @enumFromInt(@intFromEnum(action)),
+                } });
+            }
+        }.keyInput);
+
+        _ = window.setMouseButtonCallback(struct {
+            fn keyInput(wndw: *gfx.glfw.Window, key: gfx.glfw.MouseButton, action: gfx.glfw.Action, _: gfx.glfw.Mods) callconv(.C) void {
+                wndw.getUserPointer(evnt.CallbackFunction).?(evnt.Event{ .mouseButton = evnt.MouseButtonEvent{
+                    .inputType = .Keyboard,
+                    .key = @enumFromInt(@intFromEnum(key)),
+                    .action = @enumFromInt(@intFromEnum(action)),
+                } });
+            }
+        }.keyInput);
+
+        _ = window.setCursorPosCallback(struct {
+            fn cureserPos(wndw: *gfx.glfw.Window, x: f64, y: f64) callconv(.C) void {
+                wndw.getUserPointer(evnt.CallbackFunction).?(evnt.Event{ .mousePosition = evnt.MousePositionEvent{
+                    .x = x,
+                    .y = y,
+                } });
+            }
+        }.cureserPos);
 
         return viewport;
     }
@@ -155,7 +187,7 @@ pub const Viewport = struct {
         for (self._swapchainData) |*data| {
             data.deinit();
         }
-        core.mem.fba.free(self._swapchainData);
+        core.mem.ha.free(self._swapchainData);
 
         gfx.instance.destroySurfaceKHR(self._surface, null);
         self._window.destroy();
@@ -195,6 +227,18 @@ pub const Viewport = struct {
         self._height = height;
     }
 
+    pub fn setCursorEnabled(self: *Self, enabled: bool) void {
+        if (enabled) {
+            self._window.setInputMode(gfx.glfw.InputMode.cursor, gfx.glfw.Cursor.Mode.normal);
+        } else {
+            self._window.setInputMode(gfx.glfw.InputMode.cursor, gfx.glfw.Cursor.Mode.disabled);
+        }
+    }
+
+    pub fn getMousePosition(self: *Self) [2]f64 {
+        return self._window.getCursorPos();
+    }
+
     fn _initSwapchainData(self: *Self, index: u32) !void {
         self._swapchainData[index].deinit();
 
@@ -203,8 +247,8 @@ pub const Viewport = struct {
         var imageCount: u32 = undefined;
         _ = try gfx.device.getSwapchainImagesKHR(self._swapchainData[index].swapchain, &imageCount, null);
         const swapchainImages = try core.mem.fba.alloc(gfx.Image, imageCount);
-        self._swapchainData[index].imageViews = try core.mem.fba.alloc(gfx.ImageView, imageCount + 1);
-        self._swapchainData[index].framebuffers = try core.mem.fba.alloc(gfx.Framebuffer, imageCount);
+        self._swapchainData[index].imageViews = try core.mem.ha.alloc(gfx.ImageView, imageCount + 1);
+        self._swapchainData[index].framebuffers = try core.mem.ha.alloc(gfx.Framebuffer, imageCount);
         defer core.mem.fba.free(swapchainImages);
         _ = try gfx.device.getSwapchainImagesKHR(self._swapchainData[index].swapchain, &imageCount, swapchainImages.ptr);
 

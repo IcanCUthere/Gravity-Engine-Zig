@@ -3,20 +3,21 @@
 #extension GL_ARB_shading_language_420pack : enable 
 
 layout (std140, binding = 0) uniform matrices {
-    mat4 Matrix;
+    mat4 model;
+    mat4 view;
+    mat4 projection;
 } Matrices;
 
-layout (location = 0) in vec3 positions;
-layout(location = 0) out vec3 fragColor;
+layout (location = 0) in vec3 inPosition;
+layout (location = 1) in vec3 inNormal;
 
-vec3 colors[4] = vec3[](
-    vec3(1.0, 0.0, 1.0),
-    vec3(0.0, 1.0, 1.0),
-    vec3(1.0, 0.0, 0.0),
-    vec3(1.0, 0.0, 0.0)
-);
+layout(location = 0) out vec3 outFragColor;
+layout(location = 1) out vec3 outNormal;
+layout(location = 2) out vec3 outPos;
 
 void main() {
-    gl_Position = Matrices.Matrix * vec4(positions, 1.0);
-    fragColor = colors[gl_VertexIndex];
+    gl_Position = Matrices.projection * Matrices.view * Matrices.model * vec4(inPosition, 1.0);
+    outFragColor = vec3(0.6, 0.8, 0.4);
+    outNormal = vec3(Matrices.model * vec4(inNormal, 1.0));
+    outPos = vec3(Matrices.model * vec4(inPosition, 1.0));
 }

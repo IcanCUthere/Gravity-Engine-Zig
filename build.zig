@@ -75,6 +75,12 @@ pub fn build(b: *std.Build) void {
         cmp.root_module.addImport("graphics", graphics);
         cmp.root_module.addImport("core", core);
 
+        //Not needed, but helps zls
+        cmp.root_module.addImport("vulkan", vkzig.module("vulkan-zig"));
+        cmp.root_module.addImport("zglfw", zglfw.module("root"));
+        cmp.root_module.addImport("core", core);
+        cmp.root_module.addIncludePath(b.path("libs/vulkan/"));
+
         @import("system_sdk").addLibraryPathsTo(cmp);
 
         b.installArtifact(cmp);

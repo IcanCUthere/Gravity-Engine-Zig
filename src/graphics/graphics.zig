@@ -233,6 +233,13 @@ pub fn createPipeline(layout: vk.PipelineLayout, renderPass: vk.RenderPass, vert
             .offset = 0,
             .format = vk.Format.r32g32b32_sfloat,
         },
+        vk.VertexInputAttributeDescription{
+            .binding = 0,
+            .location = 1,
+            .offset = 12,
+            .format = vk.Format.r32g32b32_sfloat,
+        },
+
         //vk.VertexInputAttributeDescription{
         //    .binding = 0,
         //    .location = 1,
@@ -320,7 +327,7 @@ pub fn createPipeline(layout: vk.PipelineLayout, renderPass: vk.RenderPass, vert
             .p_rasterization_state = &vk.PipelineRasterizationStateCreateInfo{
                 .polygon_mode = vk.PolygonMode.fill,
                 .cull_mode = vk.CullModeFlags{ .back_bit = true },
-                .front_face = vk.FrontFace.counter_clockwise,
+                .front_face = vk.FrontFace.clockwise,
                 .depth_bias_enable = vk.FALSE,
                 .depth_clamp_enable = vk.FALSE,
                 .rasterizer_discard_enable = vk.FALSE,

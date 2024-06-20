@@ -148,6 +148,7 @@ pub inline fn uploadMemory(allocator: vma.VmaAllocator, buffer: BufferAllocation
         offset += @intCast(d.len);
     }
 
+    _ = vma.vmaFlushAllocation(allocator, buffer.allocation, 0, vma.VK_WHOLE_SIZE);
     vma.vmaUnmapMemory(allocator, buffer.allocation);
 
     return offset;
