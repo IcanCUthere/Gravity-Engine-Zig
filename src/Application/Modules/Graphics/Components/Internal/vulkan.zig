@@ -135,7 +135,7 @@ pub inline fn destroyBuffer(allocator: Allocator, buffer: BufferAllocation) void
     vma.vmaDestroyBuffer(allocator, @ptrFromInt(@intFromEnum(buffer.buffer)), buffer.allocation);
 }
 
-pub inline fn uploadMemory(allocator: vma.VmaAllocator, buffer: BufferAllocation, datas: []const []align(4) const u8, initialOffset: u32) !u32 {
+pub inline fn uploadMemory(allocator: vma.VmaAllocator, buffer: BufferAllocation, datas: []const []const u8, initialOffset: u32) !u32 {
     var deviceMemory: *anyopaque = undefined;
     if (vma.vmaMapMemory(allocator, buffer.allocation, @ptrCast(&deviceMemory)) != @intFromEnum(vk.Result.success)) {
         return error.MemoryMapFailed;
@@ -148,7 +148,6 @@ pub inline fn uploadMemory(allocator: vma.VmaAllocator, buffer: BufferAllocation
         offset += @intCast(d.len);
     }
 
-    _ = vma.vmaFlushAllocation(allocator, buffer.allocation, 0, vma.VK_WHOLE_SIZE);
     vma.vmaUnmapMemory(allocator, buffer.allocation);
 
     return offset;
@@ -175,6 +174,7 @@ const apis: []const vk.ApiInfo = &.{
             .getPhysicalDeviceMemoryProperties = true,
             .getPhysicalDeviceMemoryProperties2 = true,
             .getPhysicalDeviceSurfaceCapabilitiesKHR = true,
+            .getPhysicalDeviceFeatures = true,
         },
         .device_commands = .{
             .destroyDevice = true,
@@ -241,6 +241,9 @@ const apis: []const vk.ApiInfo = &.{
             .cmdEndRenderPass = true,
             .queuePresentKHR = true,
             .cmdPipelineBarrier = true,
+            .createSampler = true,
+            .destroySampler = true,
+            .cmdCopyBufferToImage = true,
             //.getDeviceBufferMemoryRequirements = true,
             //.getDeviceImageMemoryRequirements = true,
         },

@@ -19,6 +19,9 @@
         .zglfw = .{ .path = "libs/zglfw" },
         .zmath = .{ .path = "libs/zmath" },
         .zmesh = .{ .path = "libs/zmesh" },
+        .zstbi = .{ .path = "libs/zstbi" },
+        .zflecs = .{ .path = "libs/zflecs" },
+        .ztracy = .{ .path = "libs/ztracy" },
         .system_sdk = .{ .path = "libs/system-sdk" },
 
         .graphics = .{ .path = "src/graphics" },

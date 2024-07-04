@@ -864,6 +864,11 @@ pub const Window = opaque {
         glfwShowWindow(window);
     }
     extern fn glfwShowWindow(window: *Window) void;
+
+    pub fn hide(window: *Window) void {
+        glfwHideWindow(window);
+    }
+    extern fn glfwHideWindow(window: *Window) void;
 };
 
 pub const WindowHint = enum(i32) {

@@ -80,13 +80,16 @@ pub fn init() !void {
         .timeline_semaphore = vk.TRUE,
     };
 
+    var deviceFeatures: vk.PhysicalDeviceFeatures = instance.getPhysicalDeviceFeatures(physicalDevice);
+    deviceFeatures.sampler_anisotropy = vk.TRUE;
+
     device.handle = try instance.createDevice(physicalDevice, &.{
         .p_next = &timelineFeature,
         .enabled_extension_count = required_device_extensions.len,
         .pp_enabled_extension_names = &required_device_extensions,
         .enabled_layer_count = 0,
         .pp_enabled_layer_names = null,
-        .p_enabled_features = null,
+        .p_enabled_features = &deviceFeatures,
         .queue_create_info_count = familyCount,
         .p_queue_create_infos = queueCreateInfo.ptr,
     }, null);
@@ -222,7 +225,7 @@ pub fn createPipeline(layout: vk.PipelineLayout, renderPass: vk.RenderPass, vert
     const vertBindings = [_]vk.VertexInputBindingDescription{
         vk.VertexInputBindingDescription{
             .binding = 0,
-            .stride = 24,
+            .stride = 32,
             .input_rate = vk.VertexInputRate.vertex,
         },
     };
@@ -240,12 +243,12 @@ pub fn createPipeline(layout: vk.PipelineLayout, renderPass: vk.RenderPass, vert
             .format = vk.Format.r32g32b32_sfloat,
         },
 
-        //vk.VertexInputAttributeDescription{
-        //    .binding = 0,
-        //    .location = 1,
-        //    .offset = 16,
-        //    .format = vk.Format.r32g32_sfloat,
-        //},
+        vk.VertexInputAttributeDescription{
+            .binding = 0,
+            .location = 2,
+            .offset = 24,
+            .format = vk.Format.r32g32_sfloat,
+        },
     };
 
     const viewports = [_]vk.Viewport{
@@ -327,7 +330,7 @@ pub fn createPipeline(layout: vk.PipelineLayout, renderPass: vk.RenderPass, vert
             .p_rasterization_state = &vk.PipelineRasterizationStateCreateInfo{
                 .polygon_mode = vk.PolygonMode.fill,
                 .cull_mode = vk.CullModeFlags{ .back_bit = true },
-                .front_face = vk.FrontFace.clockwise,
+                .front_face = vk.FrontFace.counter_clockwise,
                 .depth_bias_enable = vk.FALSE,
                 .depth_clamp_enable = vk.FALSE,
                 .rasterizer_discard_enable = vk.FALSE,

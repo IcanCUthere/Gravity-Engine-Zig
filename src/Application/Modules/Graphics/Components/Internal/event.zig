@@ -1,4 +1,12 @@
 const std = @import("std");
+const mem = @import("core").mem;
+
+pub const KeyState = packed struct {
+    isPress: bool = false,
+    isRepeat: bool = false,
+    isRelease: bool = false,
+    isHold: bool = false,
+};
 
 pub const WindowResizeEvent = struct {
     width: u32,
@@ -7,15 +15,8 @@ pub const WindowResizeEvent = struct {
 
 pub const WindowCloseEvent = struct {};
 
-pub const KeyboardEvent = struct {
-    inputType: InputType,
+pub const KeyEvent = struct {
     key: Key,
-    action: InputAction,
-};
-
-pub const MouseButtonEvent = struct {
-    inputType: InputType,
-    key: Button,
     action: InputAction,
 };
 
@@ -25,10 +26,9 @@ pub const MousePositionEvent = struct {
 };
 
 pub const Event = union(enum) {
-    closeEvent: WindowCloseEvent,
-    resizeEvent: WindowResizeEvent,
-    keyboard: KeyboardEvent,
-    mouseButton: MouseButtonEvent,
+    windowClose: WindowCloseEvent,
+    windowResize: WindowResizeEvent,
+    key: KeyEvent,
     mousePosition: MousePositionEvent,
 };
 
@@ -40,24 +40,17 @@ pub const InputAction = enum(u8) {
     Repeated,
 };
 
-pub const InputType = enum(u8) {
-    Mouse = 0,
-    Keyboard = 1,
-};
-
-pub const Button = enum(u8) {
-    Mouseleft = 0,
-    Mouseright = 1,
-    Mousemiddle = 2,
-    Mousefour = 3,
-    Mousefive = 4,
-    Mousesix = 5,
-    Mouseseven = 6,
-    Mouseeight = 7,
-};
-
 // same as glfw input keys
 pub const Key = enum(u16) {
+    Mouseleft = 1,
+    Mouseright = 2,
+    Mousemiddle = 3,
+    Mousefour = 4,
+    Mousefive = 5,
+    Mousesix = 6,
+    Mouseseven = 7,
+    Mouseeight = 8,
+
     space = 32,
     apostrophe = 39,
     comma = 44,

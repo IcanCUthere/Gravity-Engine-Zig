@@ -1,10 +1,50 @@
 const std = @import("std");
-const gfx = @import("graphics");
+const gfx = @import("Internal/interface.zig");
+const evnt = @import("Internal/event.zig");
 const core = @import("core");
-const evnt = @import("event.zig");
+
+const flecs = @import("zflecs");
+
+fn onEvent(it: *flecs.iter_t, viewports: []Viewport) !void {
+    const event: flecs.entity_t = it.event;
+
+    for (viewports) |*v| {
+        if (event == flecs.OnRemove) {
+            try v.deinit();
+        }
+    }
+}
 
 pub const Viewport = struct {
     const Self = @This();
+    var Prefab: flecs.entity_t = undefined;
+
+    pub fn register(scene: *flecs.world_t) void {
+        flecs.COMPONENT(scene, Self);
+
+        Prefab = flecs.new_prefab(scene, "Viewport");
+        _ = flecs.set(scene, Prefab, Self, .{});
+        flecs.override(scene, Prefab, Self);
+
+        var setObsDesc = flecs.observer_desc_t{
+            .filter = flecs.filter_desc_t{
+                .terms = [1]flecs.term_t{
+                    flecs.term_t{
+                        .id = flecs.id(Self),
+                    },
+                } ++ ([1]flecs.term_t{.{}} ** 15),
+            },
+            .events = [_]u64{flecs.OnRemove} ++ ([1]u64{0} ** 7),
+            .callback = flecs.SystemImpl(onEvent).exec,
+        };
+
+        flecs.OBSERVER(scene, "viewport events", &setObsDesc);
+    }
+
+    pub fn getPrefab() flecs.entity_t {
+        return Prefab;
+    }
+
     const SwapchainData = struct {
         swapchain: gfx.SwapchainKHR = gfx.SwapchainKHR.null_handle,
         depthBuffer: gfx.ImageAllocation = std.mem.zeroes(gfx.ImageAllocation),
@@ -41,6 +81,9 @@ pub const Viewport = struct {
     _presentQueueIndex: u32 = undefined,
     _renderQueueIndex: u32 = undefined,
 
+    _timelineSemaphore: gfx.Semaphore = undefined,
+    _semaphoreValue: u64 = 1,
+
     _width: u32 = undefined,
     _height: u32 = undefined,
     _imageCount: u32 = undefined,
@@ -72,6 +115,18 @@ pub const Viewport = struct {
 
     pub fn getFormat(self: Self) gfx.Format {
         return self._format;
+    }
+
+    pub fn getSemaphore(self: Self) gfx.Semaphore {
+        return self._timelineSemaphore;
+    }
+
+    pub fn getSemaphoreValue(self: Self) u64 {
+        return self._semaphoreValue;
+    }
+
+    pub fn incrementSemaphoreValue(self: *Self) void {
+        self._semaphoreValue += 1;
     }
 
     //Not available until first nextFram() call
@@ -127,6 +182,13 @@ pub const Viewport = struct {
 
         viewport._format = (try viewport._pickFormat()).format;
 
+        viewport._timelineSemaphore = try gfx.device.createSemaphore(&gfx.SemaphoreCreateInfo{
+            .p_next = &gfx.SemaphoreTypeCreateInfo{
+                .semaphore_type = gfx.SemaphoreType.timeline,
+                .initial_value = 0,
+            },
+        }, null);
+
         window.setUserPointer(@ptrCast(@constCast(&callbackFn)));
 
         _ = window.setFramebufferSizeCallback(struct {
@@ -138,7 +200,7 @@ pub const Viewport = struct {
                     gfx.glfw.waitEvents();
                 }
 
-                wndw.getUserPointer(evnt.CallbackFunction).?(evnt.Event{ .resizeEvent = evnt.WindowResizeEvent{
+                wndw.getUserPointer(evnt.CallbackFunction).?(evnt.Event{ .windowResize = evnt.WindowResizeEvent{
                     .width = @intCast(extent[0]),
                     .height = @intCast(extent[1]),
                 } });
@@ -147,14 +209,13 @@ pub const Viewport = struct {
 
         _ = window.setWindowCloseCallback(struct {
             fn close(wndw: *gfx.glfw.Window) callconv(.C) void {
-                wndw.getUserPointer(evnt.CallbackFunction).?(evnt.Event{ .closeEvent = evnt.WindowCloseEvent{} });
+                wndw.getUserPointer(evnt.CallbackFunction).?(evnt.Event{ .windowClose = evnt.WindowCloseEvent{} });
             }
         }.close);
 
         _ = window.setKeyCallback(struct {
             fn keyInput(wndw: *gfx.glfw.Window, key: gfx.glfw.Key, _: i32, action: gfx.glfw.Action, _: gfx.glfw.Mods) callconv(.C) void {
-                wndw.getUserPointer(evnt.CallbackFunction).?(evnt.Event{ .keyboard = evnt.KeyboardEvent{
-                    .inputType = .Keyboard,
+                wndw.getUserPointer(evnt.CallbackFunction).?(evnt.Event{ .key = evnt.KeyEvent{
                     .key = @enumFromInt(@intFromEnum(key)),
                     .action = @enumFromInt(@intFromEnum(action)),
                 } });
@@ -163,9 +224,8 @@ pub const Viewport = struct {
 
         _ = window.setMouseButtonCallback(struct {
             fn keyInput(wndw: *gfx.glfw.Window, key: gfx.glfw.MouseButton, action: gfx.glfw.Action, _: gfx.glfw.Mods) callconv(.C) void {
-                wndw.getUserPointer(evnt.CallbackFunction).?(evnt.Event{ .mouseButton = evnt.MouseButtonEvent{
-                    .inputType = .Keyboard,
-                    .key = @enumFromInt(@intFromEnum(key)),
+                wndw.getUserPointer(evnt.CallbackFunction).?(evnt.Event{ .key = evnt.KeyEvent{
+                    .key = @enumFromInt(@intFromEnum(key) + 1),
                     .action = @enumFromInt(@intFromEnum(action)),
                 } });
             }
@@ -183,7 +243,15 @@ pub const Viewport = struct {
         return viewport;
     }
 
-    pub fn deinit(self: *Self) void {
+    pub fn deinit(self: *Self) !void {
+        _ = try gfx.device.waitSemaphores(&gfx.SemaphoreWaitInfo{
+            .p_semaphores = @ptrCast(&self._timelineSemaphore),
+            .p_values = @ptrCast(&self._semaphoreValue),
+            .semaphore_count = 1,
+        }, ~@as(u64, 0));
+
+        gfx.device.destroySemaphore(self._timelineSemaphore, null);
+
         for (self._swapchainData) |*data| {
             data.deinit();
         }
@@ -193,9 +261,11 @@ pub const Viewport = struct {
         self._window.destroy();
     }
 
-    pub fn nextFrame(self: *Self, semaphore: gfx.Semaphore) !void {
+    pub fn pollEvents() void {
         gfx.glfw.pollEvents();
+    }
 
+    pub fn nextFrame(self: *Self, semaphore: gfx.Semaphore) !void {
         if (self._resized) {
             const nextIndex: u32 = (self._currentSwapchain + 1) % self._imageCount;
 
@@ -227,22 +297,26 @@ pub const Viewport = struct {
         self._height = height;
     }
 
-    pub fn setCursorEnabled(self: *Self, enabled: bool) void {
+    pub fn setCursorEnabled(self: Self, enabled: bool) void {
         if (enabled) {
-            self._window.setInputMode(gfx.glfw.InputMode.cursor, gfx.glfw.Cursor.Mode.normal);
+            self._window.setInputMode(.cursor, .normal);
         } else {
-            self._window.setInputMode(gfx.glfw.InputMode.cursor, gfx.glfw.Cursor.Mode.disabled);
+            self._window.setInputMode(.cursor, .disabled);
         }
     }
 
-    pub fn getMousePosition(self: *Self) [2]f64 {
+    pub fn getMousePosition(self: Self) [2]f64 {
         return self._window.getCursorPos();
+    }
+
+    pub fn close(self: *Self) void {
+        self._window.hide();
     }
 
     fn _initSwapchainData(self: *Self, index: u32) !void {
         self._swapchainData[index].deinit();
 
-        self._swapchainData[index].swapchain = try self._createSwapchain(gfx.SwapchainKHR.null_handle);
+        self._swapchainData[index].swapchain = try self._createSwapchain(.null_handle);
 
         var imageCount: u32 = undefined;
         _ = try gfx.device.getSwapchainImagesKHR(self._swapchainData[index].swapchain, &imageCount, null);
