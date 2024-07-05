@@ -7,6 +7,8 @@ const io = @import("Internal/io.zig");
 fn onEvent(it: *flecs.iter_t, meshes: []Mesh) void {
     const event: flecs.entity_t = it.event;
 
+    std.log.info("COUNT: {d}", .{it.count()});
+
     for (meshes) |*m| {
         if (event == flecs.OnSet) {
             m.mesh = io.loadMeshFromFile(m.path) catch {
@@ -15,8 +17,7 @@ fn onEvent(it: *flecs.iter_t, meshes: []Mesh) void {
             };
 
             std.log.info("Mesh successfully loaded", .{});
-        }
-        if (event == flecs.OnRemove) {
+        } else if (event == flecs.OnRemove) {
             m.mesh.deinit();
             std.log.info("Mesh successfully unloaded", .{});
         }
@@ -46,7 +47,7 @@ pub const Mesh = struct {
                     },
                 } ++ ([1]flecs.term_t{.{}} ** 15),
             },
-            .events = [_]u64{ flecs.OnSet, flecs.OnRemove } ++ ([1]u64{0} ** 6),
+            .events = [_]u64{flecs.OnSet} ++ ([1]u64{0} ** 7),
             .callback = flecs.SystemImpl(onEvent).exec,
         };
 

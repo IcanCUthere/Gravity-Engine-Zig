@@ -7,7 +7,7 @@ pub const Editor = struct {
     pub const name: []const u8 = "editor";
     pub const dependencies = [_][]const u8{ "core", "graphics" };
 
-    pub fn init(scene: *flecs.world_t, _: *bool) !void {
+    pub fn init(scene: *flecs.world_t) !void {
         const tracy_zone = tracy.ZoneNC(@src(), "Editor Module Init", 0x00_ff_ff_00);
         defer tracy_zone.End();
 

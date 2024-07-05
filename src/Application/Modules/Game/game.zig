@@ -12,11 +12,15 @@ pub const Game = struct {
     pub const name: []const u8 = "game";
     pub const dependencies = [_][]const u8{ "core", "graphics" };
 
+    var _scene: *flecs.world_t = undefined;
+
     var mesh: flecs.entity_t = undefined;
 
-    pub fn init(scene: *flecs.world_t, _: *bool) !void {
+    pub fn init(scene: *flecs.world_t) !void {
         const tracy_zone = tracy.ZoneNC(@src(), "Game Module Init", 0x00_ff_ff_00);
         defer tracy_zone.End();
+
+        _scene = scene;
 
         _ = CameraController.register(scene);
 
@@ -33,5 +37,7 @@ pub const Game = struct {
     pub fn deinit() !void {
         const tracy_zone = tracy.ZoneNC(@src(), "Game Module Deinit", 0x00_ff_ff_00);
         defer tracy_zone.End();
+
+        flecs.delete(_scene, mesh);
     }
 };

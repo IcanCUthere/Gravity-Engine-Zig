@@ -19,13 +19,13 @@ pub const Graphics = struct {
     pub const name: []const u8 = "graphics";
     pub const dependencies = [_][]const u8{"core"};
 
-    var _shouldRun: *bool = undefined;
+    var _scene: *flecs.world_t = undefined;
 
-    pub fn init(scene: *flecs.world_t, shouldRun: *bool) !void {
+    pub fn init(scene: *flecs.world_t) !void {
         const tracy_zone = tracy.ZoneNC(@src(), "Graphics Module Init", 0x00_ff_ff_00);
         defer tracy_zone.End();
 
-        _shouldRun = shouldRun;
+        _scene = scene;
 
         try gfx.init();
         stbi.init(core.mem.ha);
@@ -121,15 +121,7 @@ pub const Graphics = struct {
         BufferedEventData.windowSizeX = viewport.getWidth();
         BufferedEventData.windowSizeY = viewport.getHeight();
 
-        try initRenderer(scene);
-    }
-
-    fn updateFOW(_: *flecs.iter_t, cameras: []Camera, viewports: []Viewport, input: []InputSingleton) void {
-        if (input[0].deltaViewportX != 0 or input[0].deltaViewportY != 0) {
-            const aspectRatio = @as(f32, @floatFromInt(input[0].viewportX)) / @as(f32, @floatFromInt(input[0].viewportY));
-            cameras[0].setProjectionMatrix(45.0, aspectRatio, 1.0, 10000.0);
-            viewports[0].resize(input[0].viewportX, input[0].viewportY);
-        }
+        try initRenderer();
     }
 
     pub fn deinit() !void {
@@ -137,6 +129,9 @@ pub const Graphics = struct {
         defer tracy_zone.End();
 
         try deinitRenderer();
+
+        flecs.delete(_scene, mainViewport);
+        flecs.delete(_scene, mainCamera);
 
         stbi.deinit();
         gfx.deinit();
@@ -157,6 +152,14 @@ pub const Graphics = struct {
         var windowSizeX: u32 = 0;
         var windowSizeY: u32 = 0;
     };
+
+    fn updateFOW(_: *flecs.iter_t, cameras: []Camera, viewports: []Viewport, input: []InputSingleton) void {
+        if (input[0].deltaViewportX != 0 or input[0].deltaViewportY != 0) {
+            const aspectRatio = @as(f32, @floatFromInt(input[0].viewportX)) / @as(f32, @floatFromInt(input[0].viewportY));
+            cameras[0].setProjectionMatrix(45.0, aspectRatio, 1.0, 10000.0);
+            viewports[0].resize(input[0].viewportX, input[0].viewportY);
+        }
+    }
 
     fn uploadEvents(_: *flecs.iter_t, input: []InputSingleton) !void {
         //calls onEvent
@@ -218,7 +221,7 @@ pub const Graphics = struct {
     }
 
     fn onWindowClose(_: evnt.WindowCloseEvent) void {
-        _shouldRun.* = false;
+        flecs.quit(_scene);
     }
 
     fn onKey(e: evnt.KeyEvent) void {
@@ -262,11 +265,13 @@ pub const Graphics = struct {
     var _imageView: gfx.ImageView = undefined;
     var _sampler: gfx.Sampler = undefined;
     var imageIndex: u32 = 0;
+    var _timelineSemaphore: gfx.Semaphore = undefined;
+    var _semaphoreValue: u64 = 1;
 
     pub var mainCamera: flecs.entity_t = undefined;
     pub var mainViewport: flecs.entity_t = undefined;
 
-    fn initRenderer(scene: *flecs.world_t) !void {
+    fn initRenderer() !void {
         const tracy_zone = tracy.ZoneNC(@src(), "Init Renderer", 0x00_ff_ff_00);
         defer tracy_zone.End();
 
@@ -290,6 +295,13 @@ pub const Graphics = struct {
 
             sem.* = try gfx.device.createSemaphore(&.{}, null);
         }
+
+        _timelineSemaphore = try gfx.device.createSemaphore(&gfx.SemaphoreCreateInfo{
+            .p_next = &gfx.SemaphoreTypeCreateInfo{
+                .semaphore_type = gfx.SemaphoreType.timeline,
+                .initial_value = 0,
+            },
+        }, null);
 
         _stagingBuffer = try gfx.createBuffer(
             gfx.vkAllocator,
@@ -620,7 +632,7 @@ pub const Graphics = struct {
                 .p_command_buffers = &[_]gfx.CommandBuffer{_cmdLists[0]},
                 .command_buffer_count = 1,
                 .p_wait_dst_stage_mask = &[_]gfx.PipelineStageFlags{.{ .transfer_bit = true }},
-                .p_signal_semaphores = &[_]gfx.Semaphore{flecs.get(scene, mainViewport, Viewport).?.getSemaphore()},
+                .p_signal_semaphores = &[_]gfx.Semaphore{_timelineSemaphore},
                 .signal_semaphore_count = 1,
                 .p_wait_semaphores = null,
                 .wait_semaphore_count = 0,
@@ -631,6 +643,14 @@ pub const Graphics = struct {
     fn deinitRenderer() !void {
         const tracy_zone = tracy.ZoneNC(@src(), "Deinit renderer", 0x00_ff_ff_00);
         defer tracy_zone.End();
+
+        _ = try gfx.device.waitSemaphores(&gfx.SemaphoreWaitInfo{
+            .p_semaphores = @ptrCast(&_timelineSemaphore),
+            .p_values = @ptrCast(&_semaphoreValue),
+            .semaphore_count = 1,
+        }, ~@as(u64, 0));
+
+        gfx.device.destroySemaphore(_timelineSemaphore, null);
 
         gfx.device.destroyDescriptorPool(_descriptorPool, null);
 
@@ -666,11 +686,11 @@ pub const Graphics = struct {
 
         try viewport[0].nextFrame(_semaphores[imageIndex]);
 
-        const waitValue: u64 = if (1 > viewport[0].getSemaphoreValue() - 1) 1 else viewport[0].getSemaphoreValue() - 1;
-        viewport[0].incrementSemaphoreValue();
+        const waitValue: u64 = if (1 > _semaphoreValue - 1) 1 else _semaphoreValue - 1;
+        _semaphoreValue += 1;
 
         _ = try gfx.device.waitSemaphores(&gfx.SemaphoreWaitInfo{
-            .p_semaphores = @ptrCast(&viewport[0].getSemaphore()),
+            .p_semaphores = @ptrCast(&_timelineSemaphore),
             .p_values = &[_]u64{waitValue},
             .semaphore_count = 1,
         }, ~@as(u64, 0));
@@ -779,7 +799,7 @@ pub const Graphics = struct {
         try gfx.device.queueSubmit(gfx.renderQueue, 1, &[_]gfx.SubmitInfo{
             gfx.SubmitInfo{
                 .p_next = &gfx.TimelineSemaphoreSubmitInfo{
-                    .p_signal_semaphore_values = @ptrCast(&viewport[0].getSemaphoreValue()),
+                    .p_signal_semaphore_values = @ptrCast(&_semaphoreValue),
                     .signal_semaphore_value_count = 2,
                     .p_wait_semaphore_values = null,
                     .wait_semaphore_value_count = 0,
@@ -787,7 +807,7 @@ pub const Graphics = struct {
                 .p_command_buffers = &[_]gfx.CommandBuffer{_cmdLists[imageIndex]},
                 .command_buffer_count = 1,
                 .p_wait_dst_stage_mask = &[_]gfx.PipelineStageFlags{.{ .color_attachment_output_bit = true }},
-                .p_signal_semaphores = &[_]gfx.Semaphore{ viewport[0].getSemaphore(), _semaphores[imageIndex] },
+                .p_signal_semaphores = &[_]gfx.Semaphore{ _timelineSemaphore, _semaphores[imageIndex] },
                 .signal_semaphore_count = 2,
                 .p_wait_semaphores = @ptrCast(&_semaphores[imageIndex]),
                 .wait_semaphore_count = 1,

@@ -1,4 +1,4 @@
-const Application = @import("Application/application.zig");
+const Application = @import("Application/application.zig").Application;
 
 pub fn main() !void {
     try Application.init();

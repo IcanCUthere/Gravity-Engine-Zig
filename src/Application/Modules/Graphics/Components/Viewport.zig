@@ -34,7 +34,7 @@ pub const Viewport = struct {
                     },
                 } ++ ([1]flecs.term_t{.{}} ** 15),
             },
-            .events = [_]u64{flecs.OnRemove} ++ ([1]u64{0} ** 7),
+            .events = [_]u64{flecs.OnSet} ++ ([1]u64{0} ** 7),
             .callback = flecs.SystemImpl(onEvent).exec,
         };
 
@@ -81,9 +81,6 @@ pub const Viewport = struct {
     _presentQueueIndex: u32 = undefined,
     _renderQueueIndex: u32 = undefined,
 
-    _timelineSemaphore: gfx.Semaphore = undefined,
-    _semaphoreValue: u64 = 1,
-
     _width: u32 = undefined,
     _height: u32 = undefined,
     _imageCount: u32 = undefined,
@@ -115,18 +112,6 @@ pub const Viewport = struct {
 
     pub fn getFormat(self: Self) gfx.Format {
         return self._format;
-    }
-
-    pub fn getSemaphore(self: Self) gfx.Semaphore {
-        return self._timelineSemaphore;
-    }
-
-    pub fn getSemaphoreValue(self: Self) u64 {
-        return self._semaphoreValue;
-    }
-
-    pub fn incrementSemaphoreValue(self: *Self) void {
-        self._semaphoreValue += 1;
     }
 
     //Not available until first nextFram() call
@@ -181,13 +166,6 @@ pub const Viewport = struct {
         }
 
         viewport._format = (try viewport._pickFormat()).format;
-
-        viewport._timelineSemaphore = try gfx.device.createSemaphore(&gfx.SemaphoreCreateInfo{
-            .p_next = &gfx.SemaphoreTypeCreateInfo{
-                .semaphore_type = gfx.SemaphoreType.timeline,
-                .initial_value = 0,
-            },
-        }, null);
 
         window.setUserPointer(@ptrCast(@constCast(&callbackFn)));
 
@@ -244,14 +222,6 @@ pub const Viewport = struct {
     }
 
     pub fn deinit(self: *Self) !void {
-        _ = try gfx.device.waitSemaphores(&gfx.SemaphoreWaitInfo{
-            .p_semaphores = @ptrCast(&self._timelineSemaphore),
-            .p_values = @ptrCast(&self._semaphoreValue),
-            .semaphore_count = 1,
-        }, ~@as(u64, 0));
-
-        gfx.device.destroySemaphore(self._timelineSemaphore, null);
-
         for (self._swapchainData) |*data| {
             data.deinit();
         }
