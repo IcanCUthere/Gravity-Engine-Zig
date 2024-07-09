@@ -56,11 +56,15 @@ pub const Application = struct {
 
     fn loadModules() !void {
         inline for (Modules.loadOrder) |M| {
-            std.log.info("Loading Module {s}", .{M.name});
+            core.log("Loading Module {s}", .{M.name}, .Info, .Abstract, .{ .Modules = true });
+
+            if (isModuleLoaded(M.name)) {
+                core.log("Module {s} already loaded", .{M.name}, .Critical, .Abstract, .{ .Modules = true });
+            }
 
             for (M.dependencies) |d| {
                 if (!isModuleLoaded(d)) {
-                    std.log.err("Module {s} depends on module {s}, but was not loaded.", .{ M.name, d });
+                    core.log("Module {s} depends on module {s}, but was not loaded", .{ M.name, d }, .Critical, .Abstract, .{ .Modules = true });
                     return error.DependencyNotLoaded;
                 }
             }
@@ -75,7 +79,7 @@ pub const Application = struct {
         inline while (i > 0) {
             i -= 1;
 
-            std.log.info("Unloading Module {s}", .{Modules.loadOrder[i].name});
+            core.log("Unloading Module {s}", .{Modules.loadOrder[i].name}, .Info, .Abstract, .{ .Modules = true });
             try Modules.loadOrder[i].deinit();
         }
 

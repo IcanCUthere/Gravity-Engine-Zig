@@ -35,12 +35,7 @@ pub const CameraController = struct {
         var eventSystem = flecs.system_desc_t{};
         eventSystem.callback = flecs.SystemImpl(onEvent).exec;
         eventSystem.query.filter.terms[0] = .{ .id = flecs.id(Self), .inout = .InOut };
-        eventSystem.query.filter.terms[1] = .{
-            .id = flecs.id(graphicsM.InputSingleton),
-            .src = flecs.term_id_t{ .id = flecs.id(graphicsM.InputSingleton) },
-            .inout = .InOut,
-        };
-        eventSystem.query.filter.instanced = true;
+
         flecs.SYSTEM(scene, "Update Controllers", flecs.PostLoad, &eventSystem);
     }
 
@@ -48,8 +43,12 @@ pub const CameraController = struct {
         return Prefab;
     }
 
-    pub fn onEvent(_: *flecs.iter_t, controllers: []Self, inputComps: []graphicsM.InputSingleton) void {
-        const input = inputComps[0].consumeInput();
+    pub fn init() Self {}
+
+    pub fn deinit(_: Self) void {}
+
+    pub fn onEvent(_: *flecs.iter_t, controllers: []Self) void {
+        const input = graphicsM.InputState;
 
         for (controllers) |*c| {
             c.deltaMousePos = .{ @floatCast(input.deltaMouseY), @floatCast(input.deltaMouseX), 0.0 };

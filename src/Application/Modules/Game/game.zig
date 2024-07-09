@@ -2,6 +2,7 @@ const flecs = @import("zflecs");
 const math = @import("core").math;
 const tracy = @import("ztracy");
 const std = @import("std");
+const core = @import("core");
 
 const coreM = @import("CoreModule");
 const graphicsM = @import("GraphicsModule");
@@ -14,7 +15,12 @@ pub const Game = struct {
 
     var _scene: *flecs.world_t = undefined;
 
-    var mesh: flecs.entity_t = undefined;
+    const components = [_]type{
+        CameraController,
+    };
+
+    var model1: flecs.entity_t = undefined;
+    var model2: flecs.entity_t = undefined;
 
     pub fn init(scene: *flecs.world_t) !void {
         const tracy_zone = tracy.ZoneNC(@src(), "Game Module Init", 0x00_ff_ff_00);
@@ -22,22 +28,36 @@ pub const Game = struct {
 
         _scene = scene;
 
-        _ = CameraController.register(scene);
+        inline for (components) |comp| {
+            comp.register(scene);
+        }
 
-        _ = flecs.set(scene, graphicsM.Graphics.mainCamera, graphicsM.Camera, graphicsM.Camera{
-            .projectionMatrix = math.perspectiveFovRh(std.math.degreesToRadians(45.0), 1.0, 1, 10000.0),
-        });
+        _ = flecs.set(scene, graphicsM.Graphics.mainCamera, graphicsM.Camera, try graphicsM.Camera.init(
+            45.0,
+            1.0,
+            1.0,
+            10000.0,
+        ));
         _ = flecs.set(scene, graphicsM.Graphics.mainCamera, CameraController, .{});
 
-        mesh = flecs.new_entity(scene, "DamagedHelmet");
-        flecs.add_pair(scene, mesh, flecs.IsA, coreM.Mesh.getPrefab());
-        _ = flecs.set(scene, mesh, coreM.Mesh, .{ .path = "resources/DamagedHelmet.glb" });
+        model1 = try graphicsM.Model.new(
+            "DamagedHelmet1",
+            "resources/DamagedHelmet.glb",
+            .{ 0, 0, 0 },
+        );
+        model2 = try graphicsM.Model.new(
+            "DamagedHelmet2",
+            "resources/DamagedHelmet.glb",
+            .{ 5, 0, 0 },
+        );
     }
 
     pub fn deinit() !void {
         const tracy_zone = tracy.ZoneNC(@src(), "Game Module Deinit", 0x00_ff_ff_00);
         defer tracy_zone.End();
 
-        flecs.delete(_scene, mesh);
+        inline for (components) |comp| {
+            try core.moduleHelpers.cleanUpComponent(comp, _scene);
+        }
     }
 };

@@ -1,12 +1,30 @@
 const std = @import("std");
 const vkgen = @import("vulkan_zig");
 
+var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+const allocator = gpa.allocator();
+
+fn concatStrings(allo: std.mem.Allocator, one: []const u8, two: []const u8, three: []const u8) []const u8 {
+    const buf = allo.alloc(u8, one.len + two.len + three.len) catch return ([0]u8{})[0..];
+    std.mem.copyForwards(u8, buf, one);
+    std.mem.copyForwards(u8, buf[one.len..], two);
+    std.mem.copyForwards(u8, buf[(one.len + two.len)..], three);
+    return buf;
+}
+
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
+    const osSubPath = switch (target.result.os.tag) {
+        .windows => "win/",
+        .linux => "linux/",
+        .macos => "mac/",
+        else => "win/",
+    };
+
     std.log.info("Compiling for: {s}-{s}-{s}", .{ @tagName(target.result.cpu.arch), @tagName(target.result.os.tag), @tagName(target.result.abi) });
-    std.log.info("Compiling in Mode: {s}", .{@tagName(optimize)});
+    std.log.info("Compiling in Mode: {s}\n", .{@tagName(optimize)});
 
     const exe = b.addExecutable(.{
         .name = "run",
@@ -43,6 +61,7 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/Core/core.zig"),
     });
     core.addImport("zmath", zmath.module("root"));
+    core.addImport("zflecs", zflecs.module("root"));
 
     const coreModule = b.createModule(std.Build.Module.CreateOptions{
         .root_source_file = b.path("src/Application/Modules/Core/core.zig"),
@@ -97,7 +116,7 @@ pub fn build(b: *std.Build) void {
 
     const shader_comp = vkgen.ShaderCompileStep.create(
         b,
-        &[_][]const u8{ "glslc", "--target-env=vulkan1.2" },
+        &[_][]const u8{ concatStrings(allocator, "libs/glslc/", osSubPath, "glslc"), "--target-env=vulkan1.2" },
         "-o",
     );
     shader_comp.add("shader_frag", "resources/fragment_shader.frag", .{});

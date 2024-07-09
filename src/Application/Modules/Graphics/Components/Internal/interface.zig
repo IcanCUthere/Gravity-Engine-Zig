@@ -24,8 +24,6 @@ const required_device_extensions = [_][*:0]const u8{
 };
 
 pub fn init() !void {
-    try glfw.init();
-
     const extensions = try glfw.getRequiredInstanceExtensions();
 
     baseDispatch = try vk.BaseDispatch.load(vk.glfwGetInstanceProcAddress);
@@ -47,19 +45,10 @@ pub fn init() !void {
     instanceDispatch = try vk.InstanceDispatch.load(instance.handle, baseDispatch.dispatch.vkGetInstanceProcAddr);
     instance.wrapper = &instanceDispatch;
 
-    var devCount: u32 = undefined;
-    _ = try instance.enumeratePhysicalDevices(&devCount, null);
+    physicalDevice = try findBestDevice();
 
-    const pdevs = try core.mem.fba.alloc(vk.PhysicalDevice, devCount);
-    defer core.mem.fba.free(pdevs);
-
-    _ = try instance.enumeratePhysicalDevices(&devCount, pdevs.ptr);
-
-    physicalDevice = for (pdevs) |pdev| {
-        if (try checkSuitable(pdev)) |dev| {
-            break dev;
-        }
-    } else return error.NoSuitibleDeviceFound;
+    const properties = instance.getPhysicalDeviceProperties(physicalDevice);
+    core.log("Used Graphics Card: {s}, Driver Version: {d}", .{ properties.device_name, properties.driver_version }, .Info, .Abstract, .{ .Vulkan = true });
 
     renderFamily = try getGraphicsFamily(physicalDevice);
 
@@ -106,7 +95,6 @@ pub fn deinit() void {
     vk.destroyAllocator(vkAllocator);
     device.destroyDevice(null);
     instance.destroyInstance(null);
-    glfw.terminate();
 }
 
 pub fn createRenderPass(viewportFormat: vk.Format) !vk.RenderPass {
@@ -377,12 +365,8 @@ pub fn createPipeline(layout: vk.PipelineLayout, renderPass: vk.RenderPass, vert
     return pipeline;
 }
 
-fn checkSuitable(pdev: vk.PhysicalDevice) !?vk.PhysicalDevice {
-    if (try checkExtensionSupport(pdev)) {
-        return pdev;
-    }
-
-    return null;
+fn checkSuitable(pdev: vk.PhysicalDevice) !bool {
+    return try checkExtensionSupport(pdev);
 }
 
 fn getGraphicsFamily(pdev: vk.PhysicalDevice) !u32 {
@@ -399,6 +383,83 @@ fn getGraphicsFamily(pdev: vk.PhysicalDevice) !u32 {
     }
 
     return error.NoRenderFamilyFound;
+}
+
+fn findRankingSpot(T: type, ranking: []const T, item: T) u64 {
+    for (ranking, 0..) |r, i| {
+        if (r == item) {
+            return i;
+        }
+    }
+
+    return 100000;
+}
+
+fn getVRamSize(dev: vk.PhysicalDevice) u64 {
+    const memProps = instance.getPhysicalDeviceMemoryProperties(dev);
+
+    for (0..memProps.memory_heap_count) |i| {
+        if (memProps.memory_heaps[i].flags.contains(.{ .device_local_bit = true })) {
+            return memProps.memory_heaps[i].size;
+        }
+    }
+
+    return 0;
+}
+
+fn hasBetterProperties(new: vk.PhysicalDevice, old: vk.PhysicalDevice) bool {
+    const newProps = instance.getPhysicalDeviceProperties(new);
+    const oldProps = instance.getPhysicalDeviceProperties(old);
+
+    const typeRanking = [_]vk.PhysicalDeviceType{
+        .discrete_gpu,
+        .integrated_gpu,
+        .virtual_gpu,
+        .cpu,
+        .other,
+    };
+
+    const newRanking = findRankingSpot(vk.PhysicalDeviceType, typeRanking[0..], newProps.device_type);
+    const oldRanking = findRankingSpot(vk.PhysicalDeviceType, typeRanking[0..], oldProps.device_type);
+    if (newRanking < oldRanking) {
+        return true;
+    } else if (newRanking > oldRanking) {
+        return false;
+    }
+
+    const newVramSize = getVRamSize(new);
+    const oldVramSize = getVRamSize(old);
+
+    if (newVramSize > oldVramSize) {
+        return true;
+    } else if (newVramSize < oldVramSize) {
+        return false;
+    }
+
+    return false;
+}
+
+fn findBestDevice() !vk.PhysicalDevice {
+    var devCount: u32 = undefined;
+    _ = try instance.enumeratePhysicalDevices(&devCount, null);
+    const pdevs = try core.mem.fba.alloc(vk.PhysicalDevice, devCount);
+    defer core.mem.fba.free(pdevs);
+    _ = try instance.enumeratePhysicalDevices(&devCount, pdevs.ptr);
+
+    var bestDev: ?vk.PhysicalDevice = null;
+    for (pdevs) |dev| {
+        if (try checkSuitable(dev)) {
+            if (bestDev == null or hasBetterProperties(dev, bestDev.?)) {
+                bestDev = dev;
+            }
+        }
+    }
+
+    if (bestDev) |d| {
+        return d;
+    } else {
+        return error.NoSuitibleGPU;
+    }
 }
 
 fn checkExtensionSupport(pdev: vk.PhysicalDevice) !bool {

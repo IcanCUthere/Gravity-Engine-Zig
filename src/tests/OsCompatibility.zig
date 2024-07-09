@@ -1,5 +1,69 @@
 const std = @import("std");
 const builtin = @import("builtin");
+const testing = std.testing;
+
+const core = @import("core");
+
+test "StableArray insert one" {
+    var stableArray = try core.StableArray(u32).init(core.mem.ha, 25, 5);
+    const id = try stableArray.add(3);
+
+    const val = stableArray.get(id);
+
+    try testing.expectEqual(3, val);
+}
+
+fn printArray(arr: core.StableArray(u32)) void {
+    std.log.warn("Array", .{});
+    for (arr.data.items) |i| {
+        std.log.warn("{d}", .{i});
+    }
+
+    for (arr.holes.items) |i| {
+        std.log.warn("{d} - {d}", .{ i.index, i.size });
+    }
+}
+
+test "StableArray insert and delete multiple" {
+    var stableArray = try core.StableArray(u32).init(core.mem.ha, 25, 5);
+
+    const id1 = try stableArray.add(1);
+    const id2 = try stableArray.add(2);
+    const id3 = try stableArray.add(3);
+
+    try testing.expectEqual(1, try stableArray.remove(id1));
+    try testing.expectEqual(2, try stableArray.remove(id2));
+
+    const id4 = try stableArray.add(4);
+    const id5 = try stableArray.add(5);
+    const id6 = try stableArray.add(6);
+
+    try testing.expectEqual(6, try stableArray.remove(id6));
+    try testing.expectEqual(5, try stableArray.remove(id5));
+
+    const id7 = try stableArray.add(7);
+    const id8 = try stableArray.add(8);
+    const id9 = try stableArray.add(9);
+    const id10 = try stableArray.add(10);
+    const id11 = try stableArray.add(11);
+    const id12 = try stableArray.add(12);
+    const id13 = try stableArray.add(13);
+    const id14 = try stableArray.add(14);
+
+    try testing.expectEqual(7, try stableArray.remove(id7));
+    try testing.expectEqual(11, try stableArray.remove(id11));
+    try testing.expectEqual(13, try stableArray.remove(id13));
+    try testing.expectEqual(14, try stableArray.remove(id14));
+    try testing.expectEqual(10, try stableArray.remove(id10));
+    try testing.expectEqual(8, try stableArray.remove(id8));
+    try testing.expectEqual(9, try stableArray.remove(id9));
+
+    try testing.expectEqual(3, stableArray.get(id3));
+    try testing.expectEqual(4, stableArray.get(id4));
+    try testing.expectEqual(12, stableArray.get(id12));
+
+    printArray(stableArray);
+}
 
 test "glfw working" {
     //try gfx.glfw.init();

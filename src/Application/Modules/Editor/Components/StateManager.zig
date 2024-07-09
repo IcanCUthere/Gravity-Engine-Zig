@@ -20,18 +20,15 @@ pub const StateManager = struct {
             .id = flecs.id(Self),
             .inout = .InOut,
         };
-        eventSystem.query.filter.terms[1] = .{
-            .id = flecs.id(graphicsM.InputSingleton),
-            .src = flecs.term_id_t{ .id = flecs.id(graphicsM.InputSingleton) },
-            .inout = .InOut,
-        };
-        eventSystem.query.filter.instanced = true;
+
         flecs.SYSTEM(scene, "Update Editor State", flecs.PostLoad, &eventSystem);
     }
 
-    pub fn onEvent(it: *flecs.iter_t, stateMangs: []Self, inputComps: []graphicsM.InputSingleton) void {
+    pub fn deinit(_: Self) void {}
+
+    pub fn onEvent(it: *flecs.iter_t, stateMangs: []Self) void {
         const stateManager = &stateMangs[0];
-        const input = &inputComps[0];
+        const input = graphicsM.InputState;
 
         const viewport = flecs.get(it.world, graphicsM.Graphics.mainViewport, graphicsM.Viewport).?;
 

@@ -2443,7 +2443,7 @@ pub fn SystemImpl(comptime fn_system: anytype) type {
             const returnType = @typeInfo(@TypeOf(fn_system)).Fn.return_type.?;
             const returnInfo = @typeInfo(returnType);
             switch (returnInfo) {
-                .ErrorUnion => _ = @call(.always_inline, fn_system, args_tuple) catch std.log.info("query error", .{}),
+                .ErrorUnion => _ = @call(.always_inline, fn_system, args_tuple) catch std.log.info("Query error using function {s}", .{@typeName(@TypeOf(fn_system))}),
                 else => _ = @call(.always_inline, fn_system, args_tuple),
             }
 

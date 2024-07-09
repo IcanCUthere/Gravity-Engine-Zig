@@ -4,6 +4,8 @@ const msh = @import("zmesh");
 const mem = @import("core").mem;
 const gltf = msh.io.zcgltf;
 
+const core = @import("core");
+
 pub const Vertex = struct {
     pos: [3]f32,
     normal: [3]f32,
@@ -33,24 +35,24 @@ pub const Mesh = struct {
 };
 
 pub fn loadMeshFromFile(path: [:0]const u8) !Mesh {
+    core.log("Loading mesh from file: {s}", .{path}, .Info, .Abstract, .{ .MeshLoading = true });
+
     var meshResult: Mesh = undefined;
 
     const gltfData = try msh.io.parseAndLoadFile(path);
     defer msh.io.freeData(gltfData);
 
     if (gltfData.meshes_count == 0) {
-        std.log.info("No meshes to load", .{});
+        core.log("No meshes found", .{}, .Warning, .Abstract, .{ .MeshLoading = true });
         return error.LoadNoMesh;
-    } else {
-        std.log.info("Loading meshes: {s}", .{path});
     }
 
-    std.log.info("Count: {d}", .{gltfData.meshes_count});
+    core.log("Mesh count: {d}", .{gltfData.meshes_count}, .Info, .Verbose, .{ .MeshLoading = true });
 
-    for (0..1) |i| { //testModel.meshes_count) |i| {
+    for (0..gltfData.meshes_count) |i| {
         const mesh = gltfData.meshes.?[i];
 
-        std.log.info("Primitives: {d}", .{mesh.primitives_count});
+        core.log("Primitive count: {d}", .{mesh.primitives_count}, .Info, .Verbose, .{ .MeshLoading = true });
 
         for (0..mesh.primitives_count) |j| {
             const primitive = mesh.primitives[j];
@@ -79,10 +81,10 @@ fn loadVertexData(primitive: gltf.Primitive) ![]Vertex {
         const attrib = &primitive.attributes[k];
         const vertices = attrib.data;
 
-        std.log.info("{s}", .{@tagName(attrib.type)});
+        core.log("{s}:", .{@tagName(attrib.type)}, .Info, .Verbose, .{ .MeshLoading = true });
 
         for (0..3) |l| {
-            std.log.info("max[{d}]: {d}", .{ l, vertices.max[l] });
+            core.log("max[{d}]: {d}", .{ l, vertices.max[l] }, .Info, .Verbose, .{ .MeshLoading = true });
         }
 
         if (attrib.type == gltf.AttributeType.position) {
@@ -121,7 +123,7 @@ fn loadVertexData(primitive: gltf.Primitive) ![]Vertex {
 
         return vertexData;
     } else {
-        std.log.info("Mesh does not have vertex positions", .{});
+        core.log("Mesh does not have vertex positions", .{}, .Warning, .Abstract, .{ .MeshLoading = true });
         return error.NoVertexPositions;
     }
 }
@@ -147,27 +149,35 @@ fn loadMaterial(primitive: gltf.Primitive) !?Material {
     var material: Material = undefined;
 
     if (primitive.material) |mat| {
-        std.log.info("Metallic: {d}", .{mat.has_pbr_metallic_roughness});
-        std.log.info("Specular: {d}", .{mat.has_pbr_specular_glossiness});
-        std.log.info("Unlit: {d}", .{mat.unlit});
+        core.log("Metallic: {d}", .{mat.has_pbr_metallic_roughness}, .Info, .Verbose, .{ .MeshLoading = true });
+        core.log("Specular: {d}", .{mat.has_pbr_specular_glossiness}, .Info, .Verbose, .{ .MeshLoading = true });
+        core.log("Unlit: {d}", .{mat.unlit}, .Info, .Verbose, .{ .MeshLoading = true });
 
         if (mat.has_pbr_metallic_roughness != 0) {
             const metalMat = mat.pbr_metallic_roughness;
 
             if (try loadTexture(metalMat.base_color_texture, 4)) |tex| {
                 material.baseColor = tex;
+            } else {
+                core.log("Has no base color texture", .{}, .Info, .Verbose, .{ .MeshLoading = true });
             }
 
             if (try loadTexture(metalMat.metallic_roughness_texture, 2)) |tex| {
                 material.metallicRoughness = tex;
+            } else {
+                core.log("Has no metallic roughness texture", .{}, .Info, .Verbose, .{ .MeshLoading = true });
             }
 
             if (try loadTexture(mat.normal_texture, 3)) |tex| {
                 material.normals = tex;
+            } else {
+                core.log("Has no normal texture", .{}, .Info, .Verbose, .{ .MeshLoading = true });
             }
 
             if (try loadTexture(mat.occlusion_texture, 1)) |tex| {
                 material.occlusion = tex;
+            } else {
+                core.log("Has no occlusion texture", .{}, .Info, .Verbose, .{ .MeshLoading = true });
             }
         }
     } else {
@@ -193,8 +203,6 @@ fn loadTexture(texture: gltf.TextureView, components: u32) !?stbi.Image {
             }
         }
     }
-
-    std.log.info("Texture not found", .{});
 
     return null;
 }

@@ -5,12 +5,12 @@ const core = @import("core");
 
 const flecs = @import("zflecs");
 
-fn onEvent(it: *flecs.iter_t, viewports: []Viewport) !void {
+fn onEvent(it: *flecs.iter_t, viewports: []Viewport) void {
     const event: flecs.entity_t = it.event;
 
     for (viewports) |*v| {
         if (event == flecs.OnRemove) {
-            try v.deinit();
+            v.deinit();
         }
     }
 }
@@ -193,6 +193,10 @@ pub const Viewport = struct {
 
         _ = window.setKeyCallback(struct {
             fn keyInput(wndw: *gfx.glfw.Window, key: gfx.glfw.Key, _: i32, action: gfx.glfw.Action, _: gfx.glfw.Mods) callconv(.C) void {
+                if (@intFromEnum(key) == -1) {
+                    return;
+                }
+
                 wndw.getUserPointer(evnt.CallbackFunction).?(evnt.Event{ .key = evnt.KeyEvent{
                     .key = @enumFromInt(@intFromEnum(key)),
                     .action = @enumFromInt(@intFromEnum(action)),
@@ -202,6 +206,10 @@ pub const Viewport = struct {
 
         _ = window.setMouseButtonCallback(struct {
             fn keyInput(wndw: *gfx.glfw.Window, key: gfx.glfw.MouseButton, action: gfx.glfw.Action, _: gfx.glfw.Mods) callconv(.C) void {
+                if (@intFromEnum(key) == -1) {
+                    return;
+                }
+
                 wndw.getUserPointer(evnt.CallbackFunction).?(evnt.Event{ .key = evnt.KeyEvent{
                     .key = @enumFromInt(@intFromEnum(key) + 1),
                     .action = @enumFromInt(@intFromEnum(action)),
@@ -221,7 +229,7 @@ pub const Viewport = struct {
         return viewport;
     }
 
-    pub fn deinit(self: *Self) !void {
+    pub fn deinit(self: *Self) void {
         for (self._swapchainData) |*data| {
             data.deinit();
         }
@@ -230,6 +238,8 @@ pub const Viewport = struct {
         gfx.instance.destroySurfaceKHR(self._surface, null);
         self._window.destroy();
     }
+
+    pub fn onUpdate(_: *flecs.iter_t, _: []Viewport) void {}
 
     pub fn pollEvents() void {
         gfx.glfw.pollEvents();
@@ -286,7 +296,7 @@ pub const Viewport = struct {
     fn _initSwapchainData(self: *Self, index: u32) !void {
         self._swapchainData[index].deinit();
 
-        self._swapchainData[index].swapchain = try self._createSwapchain(.null_handle);
+        self._swapchainData[index].swapchain = try self._createSwapchain(self._swapchainData[self._currentSwapchain].swapchain);
 
         var imageCount: u32 = undefined;
         _ = try gfx.device.getSwapchainImagesKHR(self._swapchainData[index].swapchain, &imageCount, null);

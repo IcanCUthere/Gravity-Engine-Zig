@@ -23,6 +23,10 @@ pub const Transform = struct {
         flecs.override(scene, Prefab, Self);
     }
 
+    pub fn init() Self {}
+
+    pub fn deinit(_: Self) void {}
+
     pub fn getPrefab() flecs.entity_t {
         return Prefab;
     }
