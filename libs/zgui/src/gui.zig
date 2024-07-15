@@ -12,6 +12,7 @@ pub const backend = switch (@import("zgui_options").backend) {
     .glfw_dx12 => @import("backend_glfw_dx12.zig"),
     .glfw => @import("backend_glfw.zig"),
     .win32_dx12 => @import("backend_win32_dx12.zig"),
+    .glfw_vulkan => @import("backend_glfw_vulkan.zig"),
     .no_backend => .{},
 };
 const te_enabled = @import("zgui_options").with_te;
@@ -29,6 +30,12 @@ pub const DrawVert = extern struct {
     color: u32,
 };
 //--------------------------------------------------------------------------------------------------
+
+pub const UpdatePlatformWindows = zguiUpdatePlatformWindows;
+extern fn zguiUpdatePlatformWindows() callconv(.C) void;
+
+pub const RenderPlatformWindowsDefault = zguiRenderPlatformWindowsDefault;
+extern fn zguiRenderPlatformWindowsDefault() callconv(.C) void;
 
 pub fn init(allocator: std.mem.Allocator) void {
     if (zguiGetCurrentContext() == null) {
@@ -138,8 +145,9 @@ pub const ConfigFlags = packed struct(c_int) {
     nav_no_capture_keyboard: bool = false,
     no_mouse: bool = false,
     no_mouse_cursor_change: bool = false,
+    no_keyboard: bool = false,
     dock_enable: bool = false,
-    _pading0: u3 = 0,
+    _pading0: u2 = 0,
     viewport_enable: bool = false,
     _pading1: u3 = 0,
     dpi_enable_scale_viewport: bool = false,

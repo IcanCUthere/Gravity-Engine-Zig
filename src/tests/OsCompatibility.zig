@@ -5,9 +5,10 @@ const testing = std.testing;
 const core = @import("core");
 
 test "StableArray insert one" {
-    var stableArray = try core.StableArray(u32).init(core.mem.ha, 25, 5);
-    const id = try stableArray.add(3);
+    var stableArray = try core.StableArray(u32).init(core.mem.heap, 25, 5);
+    defer stableArray.deinit();
 
+    const id = try stableArray.add(3);
     const val = stableArray.get(id);
 
     try testing.expectEqual(3, val);
@@ -25,7 +26,8 @@ fn printArray(arr: core.StableArray(u32)) void {
 }
 
 test "StableArray insert and delete multiple" {
-    var stableArray = try core.StableArray(u32).init(core.mem.ha, 25, 5);
+    var stableArray = try core.StableArray(u32).init(core.mem.heap, 25, 5);
+    defer stableArray.deinit();
 
     const id1 = try stableArray.add(1);
     const id2 = try stableArray.add(2);

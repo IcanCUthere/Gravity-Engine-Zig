@@ -34,6 +34,14 @@ ZGUI_API float zguiGetFloatMax(void) {
 }
 */
 
+ZGUI_API void zguiUpdatePlatformWindows() {
+    ImGui::UpdatePlatformWindows();
+}
+
+ZGUI_API void zguiRenderPlatformWindowsDefault() {
+    ImGui::RenderPlatformWindowsDefault();
+}
+
 ZGUI_API void zguiSetAllocatorFunctions(
     void* (*alloc_func)(size_t, void*),
     void (*free_func)(void*, void*)
@@ -2228,6 +2236,8 @@ ZGUI_API void zguiViewport_GetWorkSize(ImGuiViewport* viewport, float p[2]) {
     p[1] = sz.y;
 }
 
+/*
+
 //--------------------------------------------------------------------------------------------------
 //
 // Docking
@@ -2247,6 +2257,8 @@ ZGUI_API ImGuiID zguiDockSpaceOverViewport(const ImGuiViewport* viewport, ImGuiD
 // DockBuilder (Unstable internal imgui API, subject to change, use at own risk)
 //
 //--------------------------------------------------------------------------------------------------
+
+
 ZGUI_API void zguiDockBuilderDockWindow(const char* window_name, ImGuiID node_id) {
     ImGui::DockBuilderDockWindow(window_name, node_id);
 }
@@ -2287,6 +2299,7 @@ ZGUI_API void zguiDockBuilderFinish(ImGuiID node_id) {
     ImGui::DockBuilderFinish(node_id);
 }
 
+*/
 
 #if ZGUI_IMPLOT
 //--------------------------------------------------------------------------------------------------

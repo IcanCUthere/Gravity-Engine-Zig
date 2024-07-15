@@ -26,6 +26,11 @@ pub fn StableArray(comptime T: type) type {
             };
         }
 
+        pub fn deinit(self: *Self) void {
+            self.data.deinit();
+            self.holes.deinit();
+        }
+
         pub fn add(self: *Self, newData: T) !DataId {
             //check if there is a hole we can fill
             if (self.holes.items.len > 0) {

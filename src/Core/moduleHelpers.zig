@@ -12,8 +12,10 @@ pub fn cleanUpComponent(T: type, scene: *flecs.world_t) !void {
 
     while (flecs.query_next(&iter)) {
         if (flecs.field(&iter, T, 1)) |comps| {
-            for (comps) |*comp| {
-                comp.deinit();
+            if (flecs.field_is_self(&iter, 1)) {
+                for (comps) |*comp| {
+                    comp.deinit();
+                }
             }
         }
     }

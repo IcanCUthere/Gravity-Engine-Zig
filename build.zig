@@ -56,6 +56,10 @@ pub fn build(b: *std.Build) void {
         .enable_ztracy = true,
         .enable_fibers = true,
     });
+    const zgui = b.dependency("zgui", .{
+        .shared = false,
+        .backend = .glfw_vulkan,
+    });
 
     const core = b.createModule(std.Build.Module.CreateOptions{
         .root_source_file = b.path("src/Core/core.zig"),
@@ -64,7 +68,7 @@ pub fn build(b: *std.Build) void {
     core.addImport("zflecs", zflecs.module("root"));
 
     const coreModule = b.createModule(std.Build.Module.CreateOptions{
-        .root_source_file = b.path("src/Application/Modules/Core/core.zig"),
+        .root_source_file = b.path("src/Engine/Modules/Core/core.zig"),
     });
     coreModule.addImport("zflecs", zflecs.module("root"));
     coreModule.addImport("ztracy", ztracy.module("root"));
@@ -73,7 +77,7 @@ pub fn build(b: *std.Build) void {
     coreModule.addImport("core", core);
 
     const graphicsModule = b.createModule(std.Build.Module.CreateOptions{
-        .root_source_file = b.path("src/Application/Modules/Graphics/graphics.zig"),
+        .root_source_file = b.path("src/Engine/Modules/Graphics/graphics.zig"),
     });
     graphicsModule.addImport("zflecs", zflecs.module("root"));
     graphicsModule.addImport("ztracy", ztracy.module("root"));
@@ -89,16 +93,17 @@ pub fn build(b: *std.Build) void {
     });
 
     const editorModule = b.createModule(std.Build.Module.CreateOptions{
-        .root_source_file = b.path("src/Application/Modules/Editor/editor.zig"),
+        .root_source_file = b.path("src/Engine/Modules/Editor/editor.zig"),
     });
     editorModule.addImport("zflecs", zflecs.module("root"));
     editorModule.addImport("ztracy", ztracy.module("root"));
+    editorModule.addImport("zgui", zgui.module("root"));
     editorModule.addImport("CoreModule", coreModule);
     editorModule.addImport("GraphicsModule", graphicsModule);
     editorModule.addImport("core", core);
 
     const gameModule = b.createModule(std.Build.Module.CreateOptions{
-        .root_source_file = b.path("src/Application/Modules/Game/game.zig"),
+        .root_source_file = b.path("src/Engine/Modules/Game/game.zig"),
     });
     gameModule.addImport("zflecs", zflecs.module("root"));
     gameModule.addImport("ztracy", ztracy.module("root"));
@@ -107,7 +112,7 @@ pub fn build(b: *std.Build) void {
     gameModule.addImport("core", core);
 
     const modulesModule = b.createModule(std.Build.Module.CreateOptions{
-        .root_source_file = b.path("src/Application/Modules/modules.zig"),
+        .root_source_file = b.path("src/Engine/Modules/modules.zig"),
     });
     modulesModule.addImport("CoreModule", coreModule);
     modulesModule.addImport("GraphicsModule", graphicsModule);
@@ -122,7 +127,8 @@ pub fn build(b: *std.Build) void {
     shader_comp.add("shader_frag", "resources/fragment_shader.frag", .{});
     shader_comp.add("shader_vert", "resources/vertex_shader.vert", .{});
 
-    graphicsModule.addImport("shaders", shader_comp.getModule());
+    //graphicsModule.addImport("shaders", shader_comp.getModule());
+    gameModule.addImport("shaders", shader_comp.getModule());
 
     for ([_]*std.Build.Step.Compile{ exe, tests }) |cmp| {
         cmp.root_module.addImport("zphysics", zphysics.module("root"));
@@ -138,6 +144,7 @@ pub fn build(b: *std.Build) void {
         cmp.linkLibrary(zflecs.artifact("flecs"));
         cmp.linkLibrary(zmesh.artifact("zmesh"));
         cmp.linkLibrary(zphysics.artifact("joltc"));
+        cmp.linkLibrary(zgui.artifact("imgui"));
 
         //Not needed, but helps zls
         cmp.root_module.addImport("vulkan", vkzig.module("vulkan-zig"));
@@ -145,6 +152,7 @@ pub fn build(b: *std.Build) void {
         cmp.root_module.addImport("zglfw", zglfw.module("root"));
         cmp.root_module.addImport("zstbi", zstbi.module("root"));
         cmp.root_module.addImport("zmath", zmath.module("root"));
+        cmp.root_module.addImport("zgui", zgui.module("root"));
         cmp.root_module.addImport("core", core);
         cmp.root_module.addImport("CoreModule", coreModule);
         cmp.root_module.addImport("GraphicsModule", graphicsModule);
