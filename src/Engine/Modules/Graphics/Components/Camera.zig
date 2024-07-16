@@ -1,17 +1,19 @@
+const util = @import("util");
+const mem = util.mem;
+const math = util.math;
+
 const flecs = @import("zflecs");
-const core = @import("core");
-const coreM = @import("CoreModule");
+
+const core = @import("CoreModule");
 
 const gfx = @import("Internal/interface.zig");
 const Renderer = @import("Renderer.zig").Renderer;
-
-const std = @import("std");
 
 pub const Camera = struct {
     const Self = @This();
     var Prefab: flecs.entity_t = undefined;
 
-    projectionMatrix: core.math.Mat = core.math.identity(),
+    projectionMatrix: util.math.Mat = util.math.identity(),
 
     cameraMatricesUniform: gfx.BufferAllocation = undefined,
 
@@ -19,7 +21,7 @@ pub const Camera = struct {
         flecs.COMPONENT(scene, Self);
 
         Prefab = flecs.new_prefab(scene, "CameraPrefab");
-        flecs.add_pair(scene, Prefab, flecs.IsA, coreM.Transform.getPrefab());
+        flecs.add_pair(scene, Prefab, flecs.IsA, core.Transform.getPrefab());
         _ = flecs.set(scene, Prefab, Self, .{});
         flecs.override(scene, Prefab, Self);
     }
@@ -35,7 +37,7 @@ pub const Camera = struct {
         self.cameraMatricesUniform = try gfx.createBuffer(
             gfx.vkAllocator,
             &gfx.BufferCreateInfo{
-                .size = 2 * @sizeOf(core.math.Mat) + @sizeOf(core.math.Vec3),
+                .size = 2 * @sizeOf(util.math.Mat) + @sizeOf(util.math.Vec3),
                 .usage = gfx.BufferUsageFlags{ .uniform_buffer_bit = true },
                 .sharing_mode = gfx.SharingMode.exclusive,
             },
@@ -54,7 +56,7 @@ pub const Camera = struct {
                 gfx.DescriptorBufferInfo{
                     .buffer = self.cameraMatricesUniform.buffer,
                     .offset = 0,
-                    .range = 2 * @sizeOf(core.math.Mat) + @sizeOf(core.math.Vec3),
+                    .range = 2 * @sizeOf(util.math.Mat) + @sizeOf(util.math.Vec3),
                 },
             },
             .p_image_info = undefined,
@@ -68,10 +70,10 @@ pub const Camera = struct {
         gfx.destroyBuffer(gfx.vkAllocator, self.cameraMatricesUniform);
     }
 
-    pub fn onUpdate(_: *flecs.iter_t, cameras: []Camera, transforms: []coreM.Transform) !void {
+    pub fn onUpdate(_: *flecs.iter_t, cameras: []Camera, transforms: []core.Transform) !void {
         for (cameras, transforms) |c, t| {
-            const transformMatrix = core.math.mul(t.translationMatrix, t.rotationMatrix);
-            const data = std.mem.toBytes(transformMatrix) ++ std.mem.toBytes(c.projectionMatrix) ++ std.mem.toBytes(t.localPosition);
+            const transformMatrix = util.math.mulV(t.translationMatrix, t.rotationMatrix);
+            const data = mem.toBytes(transformMatrix) ++ mem.toBytes(c.projectionMatrix) ++ mem.toBytes(t.localPosition);
 
             try Renderer.addStagingData(Renderer.StagingData{
                 .data = &data,
@@ -81,6 +83,6 @@ pub const Camera = struct {
     }
 
     pub fn setProjectionMatrix(self: *Self, FOWinDeg: f32, aspectRatio: f32, near: f32, far: f32) void {
-        self.projectionMatrix = core.math.perspectiveFovRh(std.math.degreesToRadians(FOWinDeg), aspectRatio, near, far);
+        self.projectionMatrix = util.math.perspectiveFovRh(math.degreesToRadians(FOWinDeg), aspectRatio, near, far);
     }
 };

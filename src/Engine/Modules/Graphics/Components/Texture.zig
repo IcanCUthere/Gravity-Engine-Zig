@@ -1,12 +1,9 @@
 const flecs = @import("zflecs");
 const stbi = @import("zstbi");
-const coreM = @import("CoreModule");
 
-const std = @import("std");
-const core = @import("core");
+const core = @import("CoreModule");
 
 const gfx = @import("Internal/interface.zig");
-
 const Renderer = @import("Renderer.zig").Renderer;
 const Material = @import("Material.zig").Material;
 const Model = @import("Model.zig").Model;
@@ -16,7 +13,7 @@ pub const Texture = struct {
     var _scene: *flecs.world_t = undefined;
     var Prefab: flecs.entity_t = undefined;
 
-    baseImage: *const coreM.io.Image = undefined,
+    baseImage: *const core.io.Image = undefined,
 
     image: gfx.ImageAllocation = undefined,
     imageView: gfx.ImageView = undefined,
@@ -36,14 +33,14 @@ pub const Texture = struct {
         return Prefab;
     }
 
-    pub fn new(name: [*:0]const u8, image: *const coreM.io.Image) !flecs.entity_t {
+    pub fn new(name: [*:0]const u8, image: *const core.io.Image) !flecs.entity_t {
         const newEntt = flecs.new_entity(_scene, name);
         _ = flecs.set(_scene, newEntt, Self, try init(image));
 
         return newEntt;
     }
 
-    pub fn init(image: *const coreM.io.Image) !Texture {
+    pub fn init(image: *const core.io.Image) !Texture {
         var self = Self{
             .baseImage = image,
         };

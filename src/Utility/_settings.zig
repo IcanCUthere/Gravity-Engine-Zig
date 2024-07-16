@@ -1,11 +1,11 @@
 // -- Log Settings --
-pub const UsedLogContext = LogIO;
-pub const UsedLogLevel = LogLevel.Verbose;
+pub const UsedLogContext = LogAll;
+pub const UsedLogLevel = LogLevel.Abstract;
 pub const UsedLogType = LogType.Info;
 
 // -- Memory Settings --
-pub const fixedBufferSize = 1_049_000; //1MiB
-pub const maxHeapSize = 1_074_000_000; //8GiB
+pub const fixedBufferSize = 1_048_576; //1MiB
+pub const maxHeapSize = 1_073_741_824; //8GiB
 
 const LogNone = LogContext{};
 

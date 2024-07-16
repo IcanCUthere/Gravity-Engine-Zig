@@ -1,6 +1,3 @@
-const std = @import("std");
-const mem = @import("core").mem;
-
 pub const KeyState = packed struct {
     isPress: bool = false,
     isRepeat: bool = false,

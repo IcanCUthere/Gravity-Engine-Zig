@@ -1,11 +1,11 @@
-const flecs = @import("zflecs");
-const coreM = @import("CoreModule");
+const util = @import("util");
+const mem = util.mem;
 
-const std = @import("std");
-const core = @import("core");
+const flecs = @import("zflecs");
+
+const core = @import("CoreModule");
 
 const gfx = @import("Internal/interface.zig");
-
 const Renderer = @import("Renderer.zig").Renderer;
 const Material = @import("Material.zig").Material;
 const Texture = @import("Texture.zig").Texture;
@@ -15,7 +15,7 @@ pub const Model = struct {
     var _scene: *flecs.world_t = undefined;
     var Prefab: flecs.entity_t = undefined;
 
-    mesh: *const coreM.io.Mesh = undefined,
+    mesh: *const core.io.Mesh = undefined,
 
     descriptorSet: gfx.DescriptorSet = undefined,
     vertexBuffer: gfx.BufferAllocation = undefined,
@@ -27,7 +27,7 @@ pub const Model = struct {
         flecs.COMPONENT(scene, Self);
 
         Prefab = flecs.new_prefab(scene, "ModelPrefab");
-        flecs.add_pair(scene, Prefab, flecs.IsA, coreM.Transform.getPrefab());
+        flecs.add_pair(scene, Prefab, flecs.IsA, core.Transform.getPrefab());
         flecs.add(scene, Prefab, Self);
         flecs.add(scene, Prefab, Texture);
 
@@ -62,7 +62,7 @@ pub const Model = struct {
 
     pub fn new(name: [*:0]const u8, path: [:0]const u8, material: flecs.entity_t) !flecs.entity_t {
         const newEntt = flecs.new_entity(_scene, name);
-        const data = try coreM.storage.getOrAddMesh(path);
+        const data = try core.storage.getOrAddMesh(path);
 
         flecs.add_pair(_scene, newEntt, flecs.IsA, getPrefab());
         flecs.add_pair(_scene, newEntt, flecs.IsA, material);
@@ -79,13 +79,13 @@ pub const Model = struct {
         return newEntt;
     }
 
-    pub fn init(mesh: *const coreM.io.Mesh, material: *const Material, texture: *const Texture) !Self {
+    pub fn init(mesh: *const core.io.Mesh, material: *const Material, texture: *const Texture) !Self {
         var self = Self{
             .mesh = mesh,
         };
 
-        const vertexData = std.mem.sliceAsBytes(mesh.vertexData);
-        const indexData = std.mem.sliceAsBytes(mesh.indexData);
+        const vertexData = mem.sliceAsBytes(mesh.vertexData);
+        const indexData = mem.sliceAsBytes(mesh.indexData);
 
         self.vertexBuffer = try gfx.createBuffer(
             gfx.vkAllocator,

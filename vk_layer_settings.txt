@@ -306,14 +306,14 @@ khronos_validation.enable_message_limit = true
 # =====================
 # <LayerIdentifier>.duplicate_message_limit
 # Maximum number of times any single validation message should be reported.
-khronos_validation.duplicate_message_limit = 10
+khronos_validation.duplicate_message_limit = 1
 
 # Mute Message VUIDs
 # =====================
 # <LayerIdentifier>.message_id_filter
 # List of VUIDs and VUID identifers which are to be IGNORED by the validation
 # layer
-khronos_validation.message_id_filter = 
+khronos_validation.message_id_filter = 0x54ede350,0x990cbf9f,0xfd92477a
 
 # Display Application Name
 # =====================

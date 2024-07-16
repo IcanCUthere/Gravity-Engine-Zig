@@ -1,11 +1,11 @@
-const flecs = @import("zflecs");
-const coreM = @import("CoreModule");
+const util = @import("util");
+const mem = util.mem;
 
-const std = @import("std");
-const core = @import("core");
+const flecs = @import("zflecs");
+
+const core = @import("CoreModule");
 
 const gfx = @import("Internal/interface.zig");
-
 const Model = @import("Model.zig").Model;
 const Material = @import("Material.zig").Material;
 const Renderer = @import("Renderer.zig").Renderer;
@@ -24,13 +24,13 @@ pub const ModelInstance = struct {
         _scene = scene;
     }
 
-    pub fn new(name: [*:0]const u8, model: flecs.entity_t, position: core.math.Vec3) !flecs.entity_t {
+    pub fn new(name: [*:0]const u8, model: flecs.entity_t, position: util.math.Vec3) !flecs.entity_t {
         const newEntt = flecs.new_entity(_scene, name);
 
         flecs.add_pair(_scene, newEntt, flecs.IsA, model);
-        _ = flecs.set(_scene, newEntt, coreM.Transform, coreM.Transform{
+        _ = flecs.set(_scene, newEntt, core.Transform, core.Transform{
             .localPosition = position,
-            .translationMatrix = core.math.translation(position[0], position[1], position[2]),
+            .translationMatrix = util.math.translation(position[0], position[1], position[2]),
         });
 
         _ = flecs.set(_scene, newEntt, Self, try init(model));
@@ -46,7 +46,7 @@ pub const ModelInstance = struct {
         self.modelMatrixUniform = try gfx.createBuffer(
             gfx.vkAllocator,
             &gfx.BufferCreateInfo{
-                .size = @sizeOf(core.math.Mat),
+                .size = @sizeOf(util.math.Mat),
                 .usage = gfx.BufferUsageFlags{ .uniform_buffer_bit = true },
                 .sharing_mode = gfx.SharingMode.exclusive,
             },
@@ -71,7 +71,7 @@ pub const ModelInstance = struct {
                 gfx.DescriptorBufferInfo{
                     .buffer = self.modelMatrixUniform.buffer,
                     .offset = 0,
-                    .range = @sizeOf(core.math.Mat),
+                    .range = @sizeOf(util.math.Mat),
                 },
             },
             .p_image_info = undefined,
@@ -85,10 +85,10 @@ pub const ModelInstance = struct {
         gfx.destroyBuffer(gfx.vkAllocator, self.modelMatrixUniform);
     }
 
-    pub fn onUpdate(_: *flecs.iter_t, models: []ModelInstance, transforms: []coreM.Transform) !void {
+    pub fn onUpdate(_: *flecs.iter_t, models: []ModelInstance, transforms: []core.Transform) !void {
         for (models, transforms) |m, t| {
             try Renderer.addStagingData(Renderer.StagingData{
-                .data = std.mem.sliceAsBytes(&t.translationMatrix),
+                .data = mem.sliceAsBytes(&t.translationMatrix),
                 .dstBuffer = m.modelMatrixUniform,
             });
         }

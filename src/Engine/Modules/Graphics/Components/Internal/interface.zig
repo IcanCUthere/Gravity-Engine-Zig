@@ -1,5 +1,6 @@
-const std = @import("std");
-const core = @import("core");
+const util = @import("util");
+const mem = util.mem;
+
 const builtin = @import("builtin");
 
 pub const glfw = @import("zglfw");
@@ -38,8 +39,8 @@ pub fn init() !void {
         },
         .enabled_extension_count = @intCast(extensions.len),
         .pp_enabled_extension_names = extensions.ptr,
-        .enabled_layer_count = if (builtin.mode == std.builtin.Mode.Debug) 1 else 0,
-        .pp_enabled_layer_names = if (builtin.mode == std.builtin.Mode.Debug) &.{"VK_LAYER_KHRONOS_validation"} else null,
+        .enabled_layer_count = if (builtin.mode == .Debug) 1 else 0,
+        .pp_enabled_layer_names = if (builtin.mode == .Debug) &.{"VK_LAYER_KHRONOS_validation"} else null,
     }, null);
 
     instanceDispatch = try vk.InstanceDispatch.load(instance.handle, baseDispatch.dispatch.vkGetInstanceProcAddr);
@@ -48,7 +49,7 @@ pub fn init() !void {
     physicalDevice = try findBestDevice();
 
     const properties = instance.getPhysicalDeviceProperties(physicalDevice);
-    core.log("Used Graphics Card: {s}, Driver Version: {d}", .{ properties.device_name, properties.driver_version }, .Info, .Abstract, .{ .Vulkan = true });
+    util.log.print("Used Graphics Card: {s}, Driver Version: {d}", .{ properties.device_name, properties.driver_version }, .Info, .Abstract, .{ .Vulkan = true });
 
     renderFamily = try getGraphicsFamily(physicalDevice);
 
@@ -56,8 +57,8 @@ pub fn init() !void {
     instance.getPhysicalDeviceQueueFamilyProperties(physicalDevice, &familyCount, null);
 
     const priority = [_]f32{1};
-    const queueCreateInfo = try core.mem.fixedBuffer.alloc(vk.DeviceQueueCreateInfo, familyCount);
-    defer core.mem.fixedBuffer.free(queueCreateInfo);
+    const queueCreateInfo = try util.mem.fixedBuffer.alloc(vk.DeviceQueueCreateInfo, familyCount);
+    defer util.mem.fixedBuffer.free(queueCreateInfo);
 
     for (queueCreateInfo, 0..) |*q, i| {
         q.* = vk.DeviceQueueCreateInfo{
@@ -374,8 +375,8 @@ fn checkSuitable(pdev: vk.PhysicalDevice) !bool {
 fn getGraphicsFamily(pdev: vk.PhysicalDevice) !u32 {
     var familyCount: u32 = undefined;
     instance.getPhysicalDeviceQueueFamilyProperties(pdev, &familyCount, null);
-    const families = try core.mem.fixedBuffer.alloc(vk.QueueFamilyProperties, familyCount);
-    defer core.mem.fixedBuffer.free(families);
+    const families = try util.mem.fixedBuffer.alloc(vk.QueueFamilyProperties, familyCount);
+    defer util.mem.fixedBuffer.free(families);
     instance.getPhysicalDeviceQueueFamilyProperties(pdev, &familyCount, families.ptr);
 
     for (families, 0..) |properties, i| {
@@ -444,8 +445,8 @@ fn hasBetterProperties(new: vk.PhysicalDevice, old: vk.PhysicalDevice) bool {
 fn findBestDevice() !vk.PhysicalDevice {
     var devCount: u32 = undefined;
     _ = try instance.enumeratePhysicalDevices(&devCount, null);
-    const pdevs = try core.mem.fixedBuffer.alloc(vk.PhysicalDevice, devCount);
-    defer core.mem.fixedBuffer.free(pdevs);
+    const pdevs = try util.mem.fixedBuffer.alloc(vk.PhysicalDevice, devCount);
+    defer util.mem.fixedBuffer.free(pdevs);
     _ = try instance.enumeratePhysicalDevices(&devCount, pdevs.ptr);
 
     var bestDev: ?vk.PhysicalDevice = null;
@@ -468,14 +469,14 @@ fn checkExtensionSupport(pdev: vk.PhysicalDevice) !bool {
     var count: u32 = undefined;
     _ = try instance.enumerateDeviceExtensionProperties(pdev, null, &count, null);
 
-    const propsv = try core.mem.fixedBuffer.alloc(vk.ExtensionProperties, count);
-    defer core.mem.fixedBuffer.free(propsv);
+    const propsv = try util.mem.fixedBuffer.alloc(vk.ExtensionProperties, count);
+    defer util.mem.fixedBuffer.free(propsv);
 
     _ = try instance.enumerateDeviceExtensionProperties(pdev, null, &count, propsv.ptr);
 
     for (required_device_extensions) |ext| {
         for (propsv) |props| {
-            if (std.mem.eql(u8, std.mem.span(ext), std.mem.sliceTo(&props.extension_name, 0))) {
+            if (mem.eql(u8, mem.span(ext), mem.sliceTo(&props.extension_name, 0))) {
                 break;
             }
         } else {

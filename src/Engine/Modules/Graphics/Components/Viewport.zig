@@ -1,9 +1,10 @@
-const std = @import("std");
-const gfx = @import("Internal/interface.zig");
-const evnt = @import("Internal/event.zig");
-const core = @import("core");
+const util = @import("util");
+const mem = util.mem;
 
 const flecs = @import("zflecs");
+
+const gfx = @import("Internal/interface.zig");
+const evnt = @import("Internal/event.zig");
 
 fn onEvent(it: *flecs.iter_t, viewports: []Viewport) void {
     const event: flecs.entity_t = it.event;
@@ -47,13 +48,13 @@ pub const Viewport = struct {
 
     const SwapchainData = struct {
         swapchain: gfx.SwapchainKHR = gfx.SwapchainKHR.null_handle,
-        depthBuffer: gfx.ImageAllocation = std.mem.zeroes(gfx.ImageAllocation),
+        depthBuffer: gfx.ImageAllocation = mem.zeroes(gfx.ImageAllocation),
         imageViews: []gfx.ImageView = ([_]gfx.ImageView{})[0..],
         framebuffers: []gfx.Framebuffer = ([_]gfx.Framebuffer{})[0..],
         presentIndex: u32 = undefined,
 
         fn zeroed() SwapchainData {
-            return std.mem.zeroes(SwapchainData);
+            return mem.zeroes(SwapchainData);
         }
 
         fn deinit(self: *SwapchainData) void {
@@ -66,8 +67,8 @@ pub const Viewport = struct {
             gfx.destroyImage(gfx.vkAllocator, self.depthBuffer);
             gfx.device.destroySwapchainKHR(self.swapchain, null);
 
-            core.mem.heap.free(self.framebuffers);
-            core.mem.heap.free(self.imageViews);
+            util.mem.heap.free(self.framebuffers);
+            util.mem.heap.free(self.imageViews);
 
             self.* = SwapchainData.zeroed();
         }
@@ -143,8 +144,8 @@ pub const Viewport = struct {
 
         var family_count: u32 = undefined;
         gfx.instance.getPhysicalDeviceQueueFamilyProperties(gfx.physicalDevice, &family_count, null);
-        const families = try core.mem.fixedBuffer.alloc(gfx.QueueFamilyProperties, family_count);
-        defer core.mem.fixedBuffer.free(families);
+        const families = try util.mem.fixedBuffer.alloc(gfx.QueueFamilyProperties, family_count);
+        defer util.mem.fixedBuffer.free(families);
         gfx.instance.getPhysicalDeviceQueueFamilyProperties(gfx.physicalDevice, &family_count, families.ptr);
 
         if (try gfx.instance.getPhysicalDeviceSurfaceSupportKHR(gfx.physicalDevice, viewport._renderQueueIndex, viewport._surface) == gfx.TRUE) {
@@ -160,7 +161,7 @@ pub const Viewport = struct {
             }
         }
 
-        viewport._swapchainData = try core.mem.heap.alloc(Viewport.SwapchainData, viewport._imageCount);
+        viewport._swapchainData = try util.mem.heap.alloc(Viewport.SwapchainData, viewport._imageCount);
         for (viewport._swapchainData) |*data| {
             data.* = Viewport.SwapchainData.zeroed();
         }
@@ -233,7 +234,7 @@ pub const Viewport = struct {
         for (self._swapchainData) |*data| {
             data.deinit();
         }
-        core.mem.heap.free(self._swapchainData);
+        util.mem.heap.free(self._swapchainData);
 
         gfx.instance.destroySurfaceKHR(self._surface, null);
         self._window.destroy();
@@ -302,11 +303,11 @@ pub const Viewport = struct {
 
         var imageCount: u32 = undefined;
         _ = try gfx.device.getSwapchainImagesKHR(self._swapchainData[index].swapchain, &imageCount, null);
-        const swapchainImages = try core.mem.fixedBuffer.alloc(gfx.Image, imageCount);
-        defer core.mem.fixedBuffer.free(swapchainImages);
+        const swapchainImages = try util.mem.fixedBuffer.alloc(gfx.Image, imageCount);
+        defer util.mem.fixedBuffer.free(swapchainImages);
 
-        self._swapchainData[index].imageViews = try core.mem.heap.alloc(gfx.ImageView, imageCount + 1);
-        self._swapchainData[index].framebuffers = try core.mem.heap.alloc(gfx.Framebuffer, imageCount);
+        self._swapchainData[index].imageViews = try util.mem.heap.alloc(gfx.ImageView, imageCount + 1);
+        self._swapchainData[index].framebuffers = try util.mem.heap.alloc(gfx.Framebuffer, imageCount);
 
         _ = try gfx.device.getSwapchainImagesKHR(self._swapchainData[index].swapchain, &imageCount, swapchainImages.ptr);
 
@@ -383,8 +384,8 @@ pub const Viewport = struct {
     fn _pickFormat(self: *Self) !gfx.SurfaceFormatKHR {
         var formatCount: u32 = undefined;
         _ = try gfx.instance.getPhysicalDeviceSurfaceFormatsKHR(gfx.physicalDevice, self._surface, &formatCount, null);
-        const surfaceFormats = try core.mem.fixedBuffer.alloc(gfx.SurfaceFormatKHR, formatCount);
-        defer core.mem.fixedBuffer.free(surfaceFormats);
+        const surfaceFormats = try util.mem.fixedBuffer.alloc(gfx.SurfaceFormatKHR, formatCount);
+        defer util.mem.fixedBuffer.free(surfaceFormats);
         _ = try gfx.instance.getPhysicalDeviceSurfaceFormatsKHR(gfx.physicalDevice, self._surface, &formatCount, surfaceFormats.ptr);
         return if (surfaceFormats[0].format == gfx.Format.undefined) gfx.SurfaceFormatKHR{ .format = gfx.Format.r8g8b8a8_unorm, .color_space = gfx.ColorSpaceKHR.srgb_nonlinear_khr } else surfaceFormats[0];
     }
@@ -396,8 +397,8 @@ pub const Viewport = struct {
 
         var presentModeCount: u32 = undefined;
         _ = try gfx.instance.getPhysicalDeviceSurfacePresentModesKHR(gfx.physicalDevice, self._surface, &presentModeCount, null);
-        const presentModes = try core.mem.fixedBuffer.alloc(gfx.PresentModeKHR, presentModeCount);
-        defer core.mem.fixedBuffer.free(presentModes);
+        const presentModes = try util.mem.fixedBuffer.alloc(gfx.PresentModeKHR, presentModeCount);
+        defer util.mem.fixedBuffer.free(presentModes);
         _ = try gfx.instance.getPhysicalDeviceSurfacePresentModesKHR(gfx.physicalDevice, self._surface, &presentModeCount, presentModes.ptr);
 
         const capabilities = try gfx.instance.getPhysicalDeviceSurfaceCapabilitiesKHR(gfx.physicalDevice, self._surface);

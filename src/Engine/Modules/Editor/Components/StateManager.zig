@@ -1,9 +1,7 @@
 const flecs = @import("zflecs");
 
-const coreM = @import("CoreModule");
-const graphicsM = @import("GraphicsModule");
-
-const std = @import("std");
+const core = @import("CoreModule");
+const graphics = @import("GraphicsModule");
 
 pub const StateManager = struct {
     const Self = @This();
@@ -28,9 +26,9 @@ pub const StateManager = struct {
 
     pub fn onEvent(it: *flecs.iter_t, stateMangs: []Self) void {
         const stateManager = &stateMangs[0];
-        const input = graphicsM.InputState;
+        const input = graphics.InputState;
 
-        const viewport = flecs.get(it.world, graphicsM.Graphics.mainViewport, graphicsM.Viewport).?;
+        const viewport = flecs.get(it.world, graphics.Graphics.mainViewport, graphics.Viewport).?;
 
         if (input.getKeyState(.F1).isPress and !stateManager.inEditor) {
             stateManager.inEditor = true;

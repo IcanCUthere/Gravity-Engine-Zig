@@ -1,4 +1,6 @@
-const std = @import("std");
+const util = @import("util");
+const mem = util.mem;
+
 const glfw = @import("zglfw");
 const vk = @import("vulkan");
 pub const vma = @cImport({
@@ -144,7 +146,7 @@ pub inline fn uploadMemory(allocator: vma.VmaAllocator, buffer: BufferAllocation
     var offset: u32 = initialOffset;
     for (datas) |d| {
         const destMemory = @as([*]u8, @ptrCast(deviceMemory))[offset .. offset + d.len];
-        std.mem.copyForwards(u8, destMemory, d);
+        mem.copyForwards(u8, destMemory, d);
         offset += @intCast(d.len);
     }
 

@@ -1,17 +1,14 @@
-const core = @import("core");
-const std = @import("std");
+const util = @import("util");
+
 const flecs = @import("zflecs");
 const stbi = @import("zstbi");
 const tracy = @import("ztracy");
 const glfw = @import("zglfw");
 
-const shaders = @import("shaders");
-
-const coreM = @import("CoreModule");
+const core = @import("CoreModule");
 
 pub const gfx = @import("Components/Internal/interface.zig");
 pub const evnt = @import("Components/Internal/event.zig");
-
 pub const InputState = @import("Components/Internal/inputState.zig").InputState;
 pub const Camera = @import("Components/Camera.zig").Camera;
 pub const Viewport = @import("Components/Viewport.zig").Viewport;
@@ -122,10 +119,10 @@ pub const Graphics = struct {
 
         flecs.SYSTEM(scene, "Render", flecs.OnStore, &desc);
 
-        flecs.ADD_SYSTEM(scene, "Stop Rendering", coreM.Pipeline.postStore, Renderer.stopRendering);
-        flecs.ADD_SYSTEM(scene, "End Frame", coreM.Pipeline.postStore, Renderer.endFrame);
+        flecs.ADD_SYSTEM(scene, "Stop Rendering", core.Pipeline.postStore, Renderer.stopRendering);
+        flecs.ADD_SYSTEM(scene, "End Frame", core.Pipeline.postStore, Renderer.endFrame);
 
-        flecs.ADD_SYSTEM(scene, "Clear Events", coreM.Pipeline.postStore, clearEvents);
+        flecs.ADD_SYSTEM(scene, "Clear Events", core.Pipeline.postStore, clearEvents);
 
         BufferedEventData.mouseX = viewport.getMousePosition()[0];
         BufferedEventData.mouseY = viewport.getMousePosition()[1];
@@ -133,14 +130,16 @@ pub const Graphics = struct {
         BufferedEventData.windowSizeY = viewport.getHeight();
     }
 
+    pub fn preDeinit() !void {
+        try Renderer.deinit();
+    }
+
     pub fn deinit() !void {
         const tracy_zone = tracy.ZoneNC(@src(), "Graphics Module Deinit", 0x00_ff_ff_00);
         defer tracy_zone.End();
 
-        Renderer.deinit();
-
         inline for (components) |comp| {
-            try core.moduleHelpers.cleanUpComponent(comp, _scene);
+            try util.module.cleanUpComponent(comp, _scene);
         }
 
         gfx.deinit();

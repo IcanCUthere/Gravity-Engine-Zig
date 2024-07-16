@@ -2,10 +2,10 @@ const std = @import("std");
 const builtin = @import("builtin");
 const testing = std.testing;
 
-const core = @import("core");
+const util = @import("util");
 
 test "StableArray insert one" {
-    var stableArray = try core.StableArray(u32).init(core.mem.heap, 25, 5);
+    var stableArray = try util.StableArray(u32).init(util.mem.heap, 25, 5);
     defer stableArray.deinit();
 
     const id = try stableArray.add(3);
@@ -14,7 +14,7 @@ test "StableArray insert one" {
     try testing.expectEqual(3, val);
 }
 
-fn printArray(arr: core.StableArray(u32)) void {
+fn printArray(arr: util.StableArray(u32)) void {
     std.log.warn("Array", .{});
     for (arr.data.items) |i| {
         std.log.warn("{d}", .{i});
@@ -26,7 +26,7 @@ fn printArray(arr: core.StableArray(u32)) void {
 }
 
 test "StableArray insert and delete multiple" {
-    var stableArray = try core.StableArray(u32).init(core.mem.heap, 25, 5);
+    var stableArray = try util.StableArray(u32).init(util.mem.heap, 25, 5);
     defer stableArray.deinit();
 
     const id1 = try stableArray.add(1);

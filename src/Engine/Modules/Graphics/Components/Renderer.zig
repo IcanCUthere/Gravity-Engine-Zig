@@ -1,14 +1,12 @@
-const gfx = @import("Internal/interface.zig");
+const util = @import("util");
+const ArrayList = util.ArrayList;
+
 const tracy = @import("ztracy");
 const flecs = @import("zflecs");
 
-const coreM = @import("CoreModule");
+const core = @import("CoreModule");
 
-const std = @import("std");
-const core = @import("core");
-
-const shaders = @import("shaders");
-
+const gfx = @import("Internal/interface.zig");
 const Camera = @import("Camera.zig").Camera;
 const Viewport = @import("Viewport.zig").Viewport;
 const Model = @import("Model.zig").Model;
@@ -30,10 +28,10 @@ pub const Renderer = struct {
     var _stagingBuffers: [BufferedImages]gfx.BufferAllocation = .{undefined} ** BufferedImages;
     var _stagingBufferSizes: [BufferedImages]u64 = .{0} ** BufferedImages;
 
-    var stageData = std.ArrayList(StagingData).init(core.mem.heap);
-    pub var descriptorWrites = std.ArrayList(DescriptorWriteData).init(core.mem.heap);
-    var descriptorBufferWrites = std.ArrayList(gfx.DescriptorBufferInfo).init(core.mem.heap);
-    var descriptorImageWrites = std.ArrayList(gfx.DescriptorImageInfo).init(core.mem.heap);
+    var stageData = ArrayList(StagingData).init(util.mem.heap);
+    pub var descriptorWrites = ArrayList(DescriptorWriteData).init(util.mem.heap);
+    var descriptorBufferWrites = ArrayList(gfx.DescriptorBufferInfo).init(util.mem.heap);
+    var descriptorImageWrites = ArrayList(gfx.DescriptorImageInfo).init(util.mem.heap);
 
     pub var globalDescriptorPool: gfx.DescriptorPool = undefined;
     pub var globalDescriptorSetLayout: gfx.DescriptorSetLayout = undefined;
@@ -53,8 +51,8 @@ pub const Renderer = struct {
 
     pub const BarrierUploadData = struct {
         stage: gfx.PipelineStageFlags = gfx.PipelineStageFlags{},
-        bufferBarriers: std.ArrayList(gfx.BufferMemoryBarrier) = std.ArrayList(gfx.BufferMemoryBarrier).init(core.mem.heap),
-        imageBarriers: std.ArrayList(gfx.ImageMemoryBarrier) = std.ArrayList(gfx.ImageMemoryBarrier).init(core.mem.heap),
+        bufferBarriers: ArrayList(gfx.BufferMemoryBarrier) = ArrayList(gfx.BufferMemoryBarrier).init(util.mem.heap),
+        imageBarriers: ArrayList(gfx.ImageMemoryBarrier) = ArrayList(gfx.ImageMemoryBarrier).init(util.mem.heap),
     };
 
     pub const StagingData = struct {
@@ -81,9 +79,9 @@ pub const Renderer = struct {
 
         _renderPass = try gfx.createRenderPass(format, true);
 
-        _cmdPools = try core.mem.heap.alloc(gfx.CommandPool, BufferedImages);
-        _cmdLists = try core.mem.heap.alloc(gfx.CommandBuffer, BufferedImages);
-        _semaphores = try core.mem.heap.alloc(gfx.Semaphore, BufferedImages);
+        _cmdPools = try util.mem.heap.alloc(gfx.CommandPool, BufferedImages);
+        _cmdLists = try util.mem.heap.alloc(gfx.CommandBuffer, BufferedImages);
+        _semaphores = try util.mem.heap.alloc(gfx.Semaphore, BufferedImages);
 
         for (_cmdPools, _cmdLists, _semaphores) |*pool, *list, *sem| {
             pool.* = try gfx.device.createCommandPool(&.{
@@ -140,15 +138,15 @@ pub const Renderer = struct {
         }, @ptrCast(&descriptorSet));
     }
 
-    pub fn deinit() void {
+    pub fn deinit() !void {
         const tracy_zone = tracy.ZoneNC(@src(), "Deinit renderer", 0x00_ff_ff_00);
         defer tracy_zone.End();
 
-        _ = gfx.device.waitSemaphores(&gfx.SemaphoreWaitInfo{
+        _ = try gfx.device.waitSemaphores(&gfx.SemaphoreWaitInfo{
             .p_semaphores = @ptrCast(&_timelineSemaphore),
             .p_values = @ptrCast(&_semaphoreValue),
             .semaphore_count = 1,
-        }, ~@as(u64, 0)) catch gfx.Result.error_unknown;
+        }, ~@as(u64, 0));
 
         stageData.deinit();
         descriptorWrites.deinit();
@@ -168,9 +166,9 @@ pub const Renderer = struct {
             gfx.device.destroyCommandPool(pool, null);
         }
 
-        core.mem.heap.free(_semaphores);
-        core.mem.heap.free(_cmdLists);
-        core.mem.heap.free(_cmdPools);
+        util.mem.heap.free(_semaphores);
+        util.mem.heap.free(_cmdLists);
+        util.mem.heap.free(_cmdPools);
         gfx.device.destroyRenderPass(_renderPass, null);
     }
 
@@ -192,7 +190,7 @@ pub const Renderer = struct {
     }
 
     fn updateDescriptorSets() !void {
-        var writes = try std.ArrayList(gfx.WriteDescriptorSet).initCapacity(core.mem.heap, descriptorWrites.items.len);
+        var writes = try ArrayList(gfx.WriteDescriptorSet).initCapacity(util.mem.heap, descriptorWrites.items.len);
         defer writes.deinit();
 
         for (descriptorWrites.items) |item| {
@@ -258,16 +256,16 @@ pub const Renderer = struct {
             _stagingBufferSizes[imageIndex] = size;
         }
 
-        var datas = try std.ArrayList([]const u8).initCapacity(core.mem.heap, stageData.items.len);
+        var datas = try ArrayList([]const u8).initCapacity(util.mem.heap, stageData.items.len);
         defer datas.deinit();
 
-        var preImageBarriers = try std.ArrayList(gfx.ImageMemoryBarrier).initCapacity(core.mem.heap, stageData.items.len);
+        var preImageBarriers = try ArrayList(gfx.ImageMemoryBarrier).initCapacity(util.mem.heap, stageData.items.len);
         defer preImageBarriers.deinit();
 
-        var preBufferBarriers = try std.ArrayList(gfx.BufferMemoryBarrier).initCapacity(core.mem.heap, stageData.items.len);
+        var preBufferBarriers = try ArrayList(gfx.BufferMemoryBarrier).initCapacity(util.mem.heap, stageData.items.len);
         defer preBufferBarriers.deinit();
 
-        var postBarriers = std.ArrayList(BarrierUploadData).init(core.mem.heap);
+        var postBarriers = ArrayList(BarrierUploadData).init(util.mem.heap);
         defer postBarriers.deinit();
 
         defer for (postBarriers.items) |data| {
@@ -455,28 +453,30 @@ pub const Renderer = struct {
             },
         };
 
+        gfx.device.cmdBindPipeline(_cmdLists[imageIndex], gfx.PipelineBindPoint.graphics, material[0].pipeline);
+        gfx.device.cmdSetViewport(_cmdLists[imageIndex], 0, 1, @ptrCast(&gfx.Viewport{
+            .width = @floatFromInt(viewport[0].getWidth()),
+            .height = -@as(f32, @floatFromInt(viewport[0].getHeight())),
+            .min_depth = 0.0,
+            .max_depth = 1.0,
+            .x = 0.0,
+            .y = @floatFromInt(viewport[0].getHeight()),
+        }));
+        gfx.device.cmdSetScissor(_cmdLists[imageIndex], 0, 1, @ptrCast(&renderArea));
+
+        gfx.device.cmdBindVertexBuffers(_cmdLists[imageIndex], 0, 1, @ptrCast(&model[0].vertexBuffer.buffer), &[_]u64{0});
+        gfx.device.cmdBindIndexBuffer(_cmdLists[imageIndex], model[0].indexBuffer.buffer, 0, gfx.IndexType.uint32);
+
+        const setsToBind = [_]gfx.DescriptorSet{
+            Renderer.descriptorSet,
+            //material[0].descriptorSet,
+            model[0].descriptorSet,
+        };
+
+        gfx.device.cmdBindDescriptorSets(_cmdLists[imageIndex], gfx.PipelineBindPoint.graphics, material[0].pipelineLayout, 0, setsToBind.len, @ptrCast(&setsToBind), 0, null);
+
         for (modelInstances) |intance| {
-            gfx.device.cmdBindPipeline(_cmdLists[imageIndex], gfx.PipelineBindPoint.graphics, material[0].pipeline);
-            gfx.device.cmdSetViewport(_cmdLists[imageIndex], 0, 1, @ptrCast(&gfx.Viewport{
-                .width = @floatFromInt(viewport[0].getWidth()),
-                .height = -@as(f32, @floatFromInt(viewport[0].getHeight())),
-                .min_depth = 0.0,
-                .max_depth = 1.0,
-                .x = 0.0,
-                .y = @floatFromInt(viewport[0].getHeight()),
-            }));
-            gfx.device.cmdSetScissor(_cmdLists[imageIndex], 0, 1, @ptrCast(&renderArea));
-
-            const setsToBind = [_]gfx.DescriptorSet{
-                Renderer.descriptorSet,
-                //material[0].descriptorSet,
-                model[0].descriptorSet,
-                intance.descriptorSet,
-            };
-
-            gfx.device.cmdBindVertexBuffers(_cmdLists[imageIndex], 0, 1, @ptrCast(&model[0].vertexBuffer.buffer), &[_]u64{0});
-            gfx.device.cmdBindIndexBuffer(_cmdLists[imageIndex], model[0].indexBuffer.buffer, 0, gfx.IndexType.uint32);
-            gfx.device.cmdBindDescriptorSets(_cmdLists[imageIndex], gfx.PipelineBindPoint.graphics, material[0].pipelineLayout, 0, setsToBind.len, @ptrCast(&setsToBind), 0, null);
+            gfx.device.cmdBindDescriptorSets(_cmdLists[imageIndex], gfx.PipelineBindPoint.graphics, material[0].pipelineLayout, 2, 1, @ptrCast(&intance.descriptorSet), 0, null);
             gfx.device.cmdDrawIndexed(_cmdLists[imageIndex], @intCast(model[0].mesh.indexData.len), 1, 0, 0, 0);
         }
     }

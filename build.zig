@@ -54,11 +54,11 @@ pub fn build(b: *std.Build) void {
         .backend = .glfw_vulkan,
     });
 
-    const core = b.createModule(std.Build.Module.CreateOptions{
-        .root_source_file = b.path("src/Core/core.zig"),
+    const utils = b.createModule(std.Build.Module.CreateOptions{
+        .root_source_file = b.path("src/Utility/utils.zig"),
     });
-    core.addImport("zmath", zmath.module("root"));
-    core.addImport("zflecs", zflecs.module("root"));
+    utils.addImport("zmath", zmath.module("root"));
+    utils.addImport("zflecs", zflecs.module("root"));
 
     const coreModule = b.createModule(std.Build.Module.CreateOptions{
         .root_source_file = b.path("src/Engine/Modules/Core/core.zig"),
@@ -67,7 +67,7 @@ pub fn build(b: *std.Build) void {
     coreModule.addImport("ztracy", ztracy.module("root"));
     coreModule.addImport("zstbi", zstbi.module("root"));
     coreModule.addImport("zmesh", zmesh.module("root"));
-    coreModule.addImport("core", core);
+    coreModule.addImport("util", utils);
 
     const graphicsModule = b.createModule(std.Build.Module.CreateOptions{
         .root_source_file = b.path("src/Engine/Modules/Graphics/graphics.zig"),
@@ -75,7 +75,7 @@ pub fn build(b: *std.Build) void {
     graphicsModule.addImport("zflecs", zflecs.module("root"));
     graphicsModule.addImport("ztracy", ztracy.module("root"));
     graphicsModule.addImport("CoreModule", coreModule);
-    graphicsModule.addImport("core", core);
+    graphicsModule.addImport("util", utils);
     graphicsModule.addImport("vulkan", vkzig.module("vulkan-zig"));
     graphicsModule.addImport("zglfw", zglfw.module("root"));
     graphicsModule.addImport("zstbi", zstbi.module("root"));
@@ -93,7 +93,7 @@ pub fn build(b: *std.Build) void {
     editorModule.addImport("zgui", zgui.module("root"));
     editorModule.addImport("CoreModule", coreModule);
     editorModule.addImport("GraphicsModule", graphicsModule);
-    editorModule.addImport("core", core);
+    editorModule.addImport("util", utils);
 
     const gameModule = b.createModule(std.Build.Module.CreateOptions{
         .root_source_file = b.path("src/Engine/Modules/Game/game.zig"),
@@ -102,7 +102,7 @@ pub fn build(b: *std.Build) void {
     gameModule.addImport("ztracy", ztracy.module("root"));
     gameModule.addImport("CoreModule", coreModule);
     gameModule.addImport("GraphicsModule", graphicsModule);
-    gameModule.addImport("core", core);
+    gameModule.addImport("util", utils);
 
     const modulesModule = b.createModule(std.Build.Module.CreateOptions{
         .root_source_file = b.path("src/Engine/Modules/modules.zig"),
@@ -126,7 +126,7 @@ pub fn build(b: *std.Build) void {
     for ([_]*std.Build.Step.Compile{ exe, tests }) |cmp| {
         cmp.root_module.addImport("zphysics", zphysics.module("root"));
         cmp.root_module.addImport("ztracy", ztracy.module("root"));
-        cmp.root_module.addImport("core", core);
+        cmp.root_module.addImport("util", utils);
         cmp.root_module.addImport("modules", modulesModule);
         cmp.root_module.addImport("zflecs", zflecs.module("root"));
 
@@ -145,8 +145,9 @@ pub fn build(b: *std.Build) void {
         cmp.root_module.addImport("zglfw", zglfw.module("root"));
         cmp.root_module.addImport("zstbi", zstbi.module("root"));
         cmp.root_module.addImport("zmath", zmath.module("root"));
+        cmp.root_module.addImport("zmesh", zmesh.module("root"));
         cmp.root_module.addImport("zgui", zgui.module("root"));
-        cmp.root_module.addImport("core", core);
+        cmp.root_module.addImport("util", utils);
         cmp.root_module.addImport("CoreModule", coreModule);
         cmp.root_module.addImport("GraphicsModule", graphicsModule);
         cmp.root_module.addImport("EditorModule", editorModule);

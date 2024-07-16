@@ -1,7 +1,7 @@
+const util = @import("util");
+const math = util.math;
+
 const flecs = @import("zflecs");
-const core = @import("core");
-const math = core.math;
-const std = @import("std");
 
 pub const Transform = struct {
     const Self = @This();
@@ -35,29 +35,29 @@ pub const Transform = struct {
     }
 
     pub fn getLocalRightVector(self: Self) math.Vec3 {
-        return math.vec4ToVec3(math.mul(
-            math.matFromRollPitchYawV(math.vec3ToVec4(std.math.degreesToRadians(self.localRotation))),
+        return math.vec4ToVec3(math.mulV(
+            math.matFromRollPitchYawV(math.vec3ToVec4(math.degreesToRadians(self.localRotation))),
             math.Vec{ 1, 0, 0, 0 },
         ));
     }
 
     pub fn getLocalUpVector(self: Self) math.Vec3 {
-        return math.vec4ToVec3(math.mul(
-            math.matFromRollPitchYawV(math.vec3ToVec4(std.math.degreesToRadians(self.localRotation))),
+        return math.vec4ToVec3(math.mulV(
+            math.matFromRollPitchYawV(math.vec3ToVec4(math.degreesToRadians(self.localRotation))),
             math.Vec{ 0, 1, 0, 0 },
         ));
     }
 
     pub fn getLocalForwardVector(self: Self) math.Vec3 {
-        return math.vec4ToVec3(math.mul(
-            math.matFromRollPitchYawV(math.vec3ToVec4(std.math.degreesToRadians(self.localRotation))),
+        return math.vec4ToVec3(math.mulV(
+            math.matFromRollPitchYawV(math.vec3ToVec4(math.degreesToRadians(self.localRotation))),
             math.Vec{ 0, 0, 1, 0 },
         ));
     }
 
     pub fn getLocalRightVectorLocked(self: Self, withPitch: bool, withYaw: bool, withRoll: bool) math.Vec3 {
         return math.vec4ToVec3(
-            math.mul(
+            math.mulV(
                 getLockedRotation(
                     self.localRotation,
                     withPitch,
@@ -71,7 +71,7 @@ pub const Transform = struct {
 
     pub fn getLocalUpVectorLocked(self: Self, withPitch: bool, withYaw: bool, withRoll: bool) math.Vec3 {
         return math.vec4ToVec3(
-            math.mul(
+            math.mulV(
                 getLockedRotation(
                     self.localRotation,
                     withPitch,
@@ -85,7 +85,7 @@ pub const Transform = struct {
 
     pub fn getLocalForwardVectorLocked(self: Self, withPitch: bool, withYaw: bool, withRoll: bool) math.Vec3 {
         return math.vec4ToVec3(
-            math.mul(
+            math.mulV(
                 getLockedRotation(
                     self.localRotation,
                     withPitch,
@@ -113,18 +113,18 @@ pub const Transform = struct {
         var lockedMat = math.identity();
 
         if (withPitch) {
-            const pitchQ = math.quatFromRollPitchYawV(.{ std.math.degreesToRadians(rot[0]), 0, 0, 0 });
+            const pitchQ = math.quatFromRollPitchYawV(.{ math.degreesToRadians(rot[0]), 0, 0, 0 });
             lockedMat = math.matFromQuat(pitchQ);
         }
 
         if (withYaw) {
-            const yawQ = math.quatFromRollPitchYawV(.{ 0, std.math.degreesToRadians(rot[1]), 0, 0 });
-            lockedMat = math.mul(math.matFromQuat(yawQ), lockedMat);
+            const yawQ = math.quatFromRollPitchYawV(.{ 0, math.degreesToRadians(rot[1]), 0, 0 });
+            lockedMat = math.mulV(math.matFromQuat(yawQ), lockedMat);
         }
 
         if (withRoll) {
-            const rollQ = math.quatFromRollPitchYawV(.{ 0, 0, std.math.degreesToRadians(rot[2]), 0 });
-            lockedMat = math.mul(lockedMat, math.matFromQuat(rollQ));
+            const rollQ = math.quatFromRollPitchYawV(.{ 0, 0, math.degreesToRadians(rot[2]), 0 });
+            lockedMat = math.mulV(lockedMat, math.matFromQuat(rollQ));
         }
 
         return lockedMat;

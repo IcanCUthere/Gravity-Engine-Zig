@@ -1,10 +1,10 @@
-const flecs = @import("zflecs");
-const core = @import("core");
-const math = core.math;
-const std = @import("std");
+const util = @import("util");
+const math = util.math;
 
-const coreM = @import("CoreModule");
-const graphicsM = @import("GraphicsModule");
+const flecs = @import("zflecs");
+
+const core = @import("CoreModule");
+const graphics = @import("GraphicsModule");
 
 pub const CameraController = struct {
     const Self = @This();
@@ -31,7 +31,7 @@ pub const CameraController = struct {
 
         var moveSystem = flecs.system_desc_t{};
         moveSystem.callback = flecs.SystemImpl(onUpdate).exec;
-        moveSystem.query.filter.terms[0] = .{ .id = flecs.id(coreM.Transform), .inout = .InOut };
+        moveSystem.query.filter.terms[0] = .{ .id = flecs.id(core.Transform), .inout = .InOut };
         moveSystem.query.filter.terms[1] = .{ .id = flecs.id(Self), .inout = .In };
         flecs.SYSTEM(scene, "Move Camera", flecs.OnUpdate, &moveSystem);
 
@@ -51,7 +51,7 @@ pub const CameraController = struct {
     pub fn deinit(_: Self) void {}
 
     pub fn onEvent(_: *flecs.iter_t, controllers: []Self) void {
-        const input = graphicsM.InputState;
+        const input = graphics.InputState;
 
         for (controllers) |*c| {
             c.deltaMousePos = .{ @floatCast(input.deltaMouseY), @floatCast(input.deltaMouseX), 0.0 };
@@ -100,20 +100,20 @@ pub const CameraController = struct {
         }
     }
 
-    pub fn onUpdate(it: *flecs.iter_t, cameras: []coreM.Transform, controllers: []const Self) void {
+    pub fn onUpdate(it: *flecs.iter_t, cameras: []core.Transform, controllers: []const Self) void {
         for (cameras, controllers) |*camera, controller| {
             const deltaSplat: math.Vec3 = @splat(it.delta_time);
             const negativeOne: math.Vec3 = @splat(-1.0);
             const deltaSpeed = math.splat(math.Vec3, controller.speed) * deltaSplat;
 
             camera.localRotation += controller.deltaMousePos * controller.mouseSpeed;
-            camera.localRotation[0] = std.math.clamp(
+            camera.localRotation[0] = math.clamp(
                 camera.localRotation[0],
                 -90,
                 90,
             );
 
-            const upVector = coreM.Transform.getWorldUpVector();
+            const upVector = core.Transform.getWorldUpVector();
             const rightVector = camera.getLocalRightVectorLocked(false, true, false);
             const forwardVector = camera.getLocalForwardVectorLocked(false, true, false);
 
@@ -138,12 +138,12 @@ pub const CameraController = struct {
                 moveDirection += forwardVector * negativeOne;
             }
 
-            moveDirection = core.math.normalize(moveDirection);
+            moveDirection = util.math.normalize(moveDirection);
             camera.localPosition += moveDirection * deltaSpeed;
 
             camera.translationMatrix = math.translationV(math.vec3ToVec4(camera.localPosition));
 
-            camera.rotationMatrix = coreM.Transform.getLockedRotation(camera.localRotation, true, true, false);
+            camera.rotationMatrix = core.Transform.getLockedRotation(camera.localRotation, true, true, false);
         }
     }
 };

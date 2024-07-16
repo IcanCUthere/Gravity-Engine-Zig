@@ -1,16 +1,19 @@
-const std = @import("std");
+const util = @import("util");
+const mem = util.mem;
+const ArrayList = util.ArrayList;
+
 const flecs = @import("zflecs");
 const tracy = @import("ztracy");
-const core = @import("core");
+
 const builtin = @import("builtin");
 
 const Modules = @import("modules");
 
 pub const GravityEngine = struct {
     const Self = @This();
-    const ModuleArray = std.ArrayList([]const u8);
+    const ModuleArray = ArrayList([]const u8);
 
-    var modules: ModuleArray = ModuleArray.init(core.mem.heap);
+    var modules: ModuleArray = ModuleArray.init(util.mem.heap);
     var scene: *flecs.world_t = undefined;
 
     pub fn init() !void {
@@ -31,8 +34,8 @@ pub const GravityEngine = struct {
         _ = flecs.fini(scene);
 
         if (builtin.mode == .Debug) {
-            core.log("Bytes allocated on heap after cleanup: {d}", .{core.mem.heapAllocator.total_requested_bytes}, .Info, .Abstract, .{ .Allocations = true });
-            core.log("Bytes allocated in fixedBuffer after cleanup: {d}", .{core.mem.fixedBufferAllocator.total_requested_bytes}, .Info, .Abstract, .{ .Allocations = true });
+            util.log.print("Bytes allocated on heap after cleanup: {d}", .{util.mem.heapAllocator.total_requested_bytes}, .Info, .Abstract, .{ .Allocations = true });
+            util.log.print("Bytes allocated in fixedBuffer after cleanup: {d}", .{util.mem.fixedBufferAllocator.total_requested_bytes}, .Info, .Abstract, .{ .Allocations = true });
         }
     }
 
@@ -52,7 +55,7 @@ pub const GravityEngine = struct {
 
     fn isModuleLoaded(name: []const u8) bool {
         for (modules.items) |m| {
-            if (std.mem.eql(u8, name, m)) {
+            if (mem.eql(u8, name, m)) {
                 return true;
             }
         }
@@ -62,15 +65,15 @@ pub const GravityEngine = struct {
 
     fn loadModules() !void {
         inline for (Modules.loadOrder) |M| {
-            core.log("Loading Module {s}", .{M.name}, .Info, .Abstract, .{ .Modules = true });
+            util.log.print("Loading Module {s}", .{M.name}, .Info, .Abstract, .{ .Modules = true });
 
             if (isModuleLoaded(M.name)) {
-                core.log("Module {s} already loaded", .{M.name}, .Critical, .Abstract, .{ .Modules = true });
+                util.log.print("Module {s} already loaded", .{M.name}, .Critical, .Abstract, .{ .Modules = true });
             }
 
             for (M.dependencies) |d| {
                 if (!isModuleLoaded(d)) {
-                    core.log("Module {s} depends on module {s}, but was not loaded", .{ M.name, d }, .Critical, .Abstract, .{ .Modules = true });
+                    util.log.print("Module {s} depends on module {s}, but was not loaded", .{ M.name, d }, .Critical, .Abstract, .{ .Modules = true });
                     return error.DependencyNotLoaded;
                 }
             }
@@ -81,12 +84,24 @@ pub const GravityEngine = struct {
     }
 
     fn unloadModules() !void {
-        comptime var i = Modules.loadOrder.len;
-        inline while (i > 0) {
-            i -= 1;
+        {
+            comptime var i = Modules.loadOrder.len;
+            inline while (i > 0) {
+                i -= 1;
 
-            core.log("Unloading Module {s}", .{Modules.loadOrder[i].name}, .Info, .Abstract, .{ .Modules = true });
-            try Modules.loadOrder[i].deinit();
+                util.log.print("Preparing to unload Module {s}", .{Modules.loadOrder[i].name}, .Info, .Abstract, .{ .Modules = true });
+                try Modules.loadOrder[i].preDeinit();
+            }
+        }
+
+        {
+            comptime var i = Modules.loadOrder.len;
+            inline while (i > 0) {
+                i -= 1;
+
+                util.log.print("Unloading Module {s}", .{Modules.loadOrder[i].name}, .Info, .Abstract, .{ .Modules = true });
+                try Modules.loadOrder[i].deinit();
+            }
         }
 
         modules.deinit();

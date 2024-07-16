@@ -3,6 +3,8 @@ const builtin = @import("builtin");
 
 const settings = @import("_settings.zig");
 
+pub usingnamespace std.mem;
+
 const config = .{
     .enable_memory_limit = true,
     .never_unmap = true,

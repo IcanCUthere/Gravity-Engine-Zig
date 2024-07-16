@@ -1,11 +1,11 @@
-const flecs = @import("zflecs");
-const math = @import("core").math;
-const tracy = @import("ztracy");
-const std = @import("std");
-const core = @import("core");
+const util = @import("util");
+const fmt = util.fmt;
 
-const coreM = @import("CoreModule");
-const graphicsM = @import("GraphicsModule");
+const flecs = @import("zflecs");
+const tracy = @import("ztracy");
+
+const core = @import("CoreModule");
+const graphics = @import("GraphicsModule");
 
 const CameraController = @import("Components/CameraController.zig").CameraController;
 
@@ -31,22 +31,22 @@ pub const Game = struct {
             comp.register(scene);
         }
 
-        _ = flecs.set(scene, graphicsM.Graphics.mainCamera, graphicsM.Camera, try graphicsM.Camera.init(
+        _ = flecs.set(scene, graphics.Graphics.mainCamera, graphics.Camera, try graphics.Camera.init(
             45.0,
             1.0,
             1.0,
             10000.0,
         ));
 
-        _ = flecs.set(scene, graphicsM.Graphics.mainCamera, CameraController, .{});
+        _ = flecs.set(scene, graphics.Graphics.mainCamera, CameraController, .{});
 
-        const material = try graphicsM.Material.new(
+        const material = try graphics.Material.new(
             "BaseMaterial",
             &shaders.shader_vert,
             &shaders.shader_frag,
         );
 
-        const prefab = try graphicsM.Model.new(
+        const prefab = try graphics.Model.new(
             "Helmet",
             "resources/DamagedHelmet.glb",
             material,
@@ -58,29 +58,31 @@ pub const Game = struct {
             for (0..max) |y| {
                 for (0..max) |z| {
                     const num = (z + (y * max) + (x * max * max)) * 10;
-                    const res = try std.fmt.allocPrint(core.mem.heap, "Damaged helmet{d}", .{num});
+                    const res = try fmt.allocPrint(util.mem.heap, "Damaged helmet{d}", .{num});
 
                     res[res.len - 1] = 0;
 
-                    _ = try graphicsM.ModelInstance.new(
+                    _ = try graphics.ModelInstance.new(
                         @ptrCast(res.ptr),
                         prefab,
                         .{ @floatFromInt(x * 5), @floatFromInt(y * 5), @floatFromInt(z * 5) },
                     );
 
                     //std.log.info("CREATED {s} {d}", .{ res, num });
-                    core.mem.heap.free(res);
+                    util.mem.heap.free(res);
                 }
             }
         }
     }
+
+    pub fn preDeinit() !void {}
 
     pub fn deinit() !void {
         const tracy_zone = tracy.ZoneNC(@src(), "Game Module Deinit", 0x00_ff_ff_00);
         defer tracy_zone.End();
 
         inline for (components) |comp| {
-            try core.moduleHelpers.cleanUpComponent(comp, _scene);
+            try util.module.cleanUpComponent(comp, _scene);
         }
     }
 };

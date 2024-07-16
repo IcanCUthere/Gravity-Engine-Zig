@@ -1,8 +1,8 @@
-const std = @import("std");
-const io = @import("io.zig");
-const core = @import("core");
+const util = @import("util");
 
-var meshStorage = std.StringHashMap(*io.ModelData).init(core.mem.heap);
+const io = @import("io.zig");
+
+var meshStorage = util.StringHashMap(*io.ModelData).init(util.mem.heap);
 
 pub fn init() void {}
 
@@ -12,7 +12,7 @@ pub fn deinit() void {
     var item = iter.next();
     while (item) |i| {
         i.*.*.deinit();
-        core.mem.heap.destroy(i.*);
+        util.mem.heap.destroy(i.*);
         item = iter.next();
     }
 
@@ -36,7 +36,7 @@ pub fn getOrAddMesh(path: [:0]const u8) !*io.ModelData {
 }
 
 pub fn addMesh(path: [:0]const u8) !*io.ModelData {
-    const new = try core.mem.heap.create(io.ModelData);
+    const new = try util.mem.heap.create(io.ModelData);
     new.* = try io.loadModelFromFile(path);
 
     try meshStorage.put(path, new);

@@ -1,14 +1,13 @@
+const util = @import("util");
+
 const flecs = @import("zflecs");
 const tracy = @import("ztracy");
 const msh = @import("zmesh");
 const stbi = @import("zstbi");
-const core = @import("core");
 
 pub const Transform = @import("Components/Transform.zig").Transform;
 pub const io = @import("Components/Internal/io.zig");
 pub const storage = @import("Components/Internal/storage.zig");
-
-const std = @import("std");
 
 pub const Pipeline = struct {
     pub const onLoad = flecs.OnLoad;
@@ -38,8 +37,8 @@ pub const Core = struct {
 
         _scene = scene;
 
-        msh.init(core.mem.heap);
-        stbi.init(core.mem.heap);
+        msh.init(util.mem.heap);
+        stbi.init(util.mem.heap);
         storage.init();
 
         Pipeline.postStore = flecs.new_id(_scene);
@@ -50,12 +49,14 @@ pub const Core = struct {
         }
     }
 
+    pub fn preDeinit() !void {}
+
     pub fn deinit() !void {
         const tracy_zone = tracy.ZoneNC(@src(), "Core Module Deinit", 0x00_ff_ff_00);
         defer tracy_zone.End();
 
         inline for (components) |comp| {
-            try core.moduleHelpers.cleanUpComponent(comp, _scene);
+            try util.module.cleanUpComponent(comp, _scene);
         }
 
         storage.deinit();

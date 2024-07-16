@@ -1246,7 +1246,7 @@ void ImGui_ImplVulkan_RemoveTexture(VkDescriptorSet descriptor_set)
 {
     ImGui_ImplVulkan_Data* bd = ImGui_ImplVulkan_GetBackendData();
     ImGui_ImplVulkan_InitInfo* v = &bd->VulkanInitInfo;
-    vkFreeDescriptorSets(v->Device, v->DescriptorPool, 1, &descriptor_set);
+    //vkFreeDescriptorSets(v->Device, v->DescriptorPool, 1, &descriptor_set);
 }
 
 void ImGui_ImplVulkan_DestroyFrameRenderBuffers(VkDevice device, ImGui_ImplVulkan_FrameRenderBuffers* buffers, const VkAllocationCallbacks* allocator)

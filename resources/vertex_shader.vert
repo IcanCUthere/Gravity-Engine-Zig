@@ -26,10 +26,10 @@ layout(location = 4) out vec3 outViewPos;
 
 void main() {
     outPos = vec3(Model.transform * vec4(inPosition, 1.0));  
-    outNormal = inNormal;
+    outNormal = mat3(transpose(inverse(Model.transform))) * inNormal;
     
     outTexCoords = inTexCoords;
-    outLightPos = vec3(0.0, 0.0, -400.0);
+    outLightPos = vec3(0.0, 0.0, -10.0);
     outViewPos = Camera.position;
 
     gl_Position = Camera.projection * Camera.transform * vec4(outPos, 1.0);

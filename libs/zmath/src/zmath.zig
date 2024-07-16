@@ -1243,36 +1243,6 @@ test "zmath.ceil" {
     }
 }
 
-pub inline fn clamp(v: anytype, vmin: anytype, vmax: anytype) @TypeOf(v, vmin, vmax) {
-    var result = max(vmin, v);
-    result = min(vmax, result);
-    return result;
-}
-test "zmath.clamp" {
-    // Calling math.inf causes test to fail!
-    if (builtin.target.os.tag == .macos and builtin.target.cpu.arch == .aarch64) return error.SkipZigTest;
-    {
-        const v0 = f32x4(-1.0, 0.2, 1.1, -0.3);
-        const v = clamp(v0, splat(F32x4, -0.5), splat(F32x4, 0.5));
-        try expect(approxEqAbs(v, f32x4(-0.5, 0.2, 0.5, -0.3), 0.0001));
-    }
-    {
-        const v0 = f32x8(-2.0, 0.25, -0.25, 100.0, -1.0, 0.2, 1.1, -0.3);
-        const v = clamp(v0, splat(F32x8, -0.5), splat(F32x8, 0.5));
-        try expect(approxEqAbs(v, f32x8(-0.5, 0.25, -0.25, 0.5, -0.5, 0.2, 0.5, -0.3), 0.0001));
-    }
-    {
-        const v0 = f32x4(-math.inf(f32), math.inf(f32), math.nan(f32), math.snan(f32));
-        const v = clamp(v0, f32x4(-100.0, 0.0, -100.0, 0.0), f32x4(0.0, 100.0, 0.0, 100.0));
-        try expect(approxEqAbs(v, f32x4(-100.0, 100.0, -100.0, 0.0), 0.0001));
-    }
-    {
-        const v0 = f32x4(math.inf(f32), math.inf(f32), -math.nan(f32), -math.snan(f32));
-        const v = clamp(v0, splat(F32x4, -1.0), splat(F32x4, 1.0));
-        try expect(approxEqAbs(v, f32x4(1.0, 1.0, -1.0, -1.0), 0.0001));
-    }
-}
-
 pub inline fn clampFast(v: anytype, vmin: anytype, vmax: anytype) @TypeOf(v, vmin, vmax) {
     var result = maxFast(vmin, v);
     result = minFast(vmax, result);
@@ -2070,9 +2040,9 @@ test "zmath.vecMulMat" {
         f32x4(0.0, 0.0, 1.0, 0.0),
         f32x4(2.0, 3.0, 4.0, 1.0),
     };
-    const vm = mul(f32x4(1.0, 2.0, 3.0, 1.0), m);
-    const mv = mul(m, f32x4(1.0, 2.0, 3.0, 1.0));
-    const v = mul(transpose(m), f32x4(1.0, 2.0, 3.0, 1.0));
+    const vm = mulV(f32x4(1.0, 2.0, 3.0, 1.0), m);
+    const mv = mulV(m, f32x4(1.0, 2.0, 3.0, 1.0));
+    const v = mulV(transpose(m), f32x4(1.0, 2.0, 3.0, 1.0));
     try expect(approxEqAbs(vm, f32x4(3.0, 5.0, 7.0, 1.0), 0.0001));
     try expect(approxEqAbs(mv, f32x4(1.0, 2.0, 3.0, 21.0), 0.0001));
     try expect(approxEqAbs(v, f32x4(3.0, 5.0, 7.0, 1.0), 0.0001));
@@ -2114,7 +2084,7 @@ fn mulRetType(comptime Ta: type, comptime Tb: type) type {
     @compileError("zmath.mul() not implemented for types: " ++ @typeName(Ta) ++ @typeName(Tb));
 }
 
-pub fn mul(a: anytype, b: anytype) mulRetType(@TypeOf(a), @TypeOf(b)) {
+pub fn mulV(a: anytype, b: anytype) mulRetType(@TypeOf(a), @TypeOf(b)) {
     const Ta = @TypeOf(a);
     const Tb = @TypeOf(b);
     if (Ta == Mat and Tb == Mat) {
@@ -2141,7 +2111,7 @@ test "zmath.mul" {
             f32x4(0.9, 1.0, 1.1, 1.2),
             f32x4(1.3, 1.4, 1.5, 1.6),
         };
-        const ms = mul(@as(f32, 2.0), m);
+        const ms = mulV(@as(f32, 2.0), m);
         try expect(approxEqAbs(ms[0], f32x4(0.2, 0.4, 0.6, 0.8), 0.0001));
         try expect(approxEqAbs(ms[1], f32x4(1.0, 1.2, 1.4, 1.6), 0.0001));
         try expect(approxEqAbs(ms[2], f32x4(1.8, 2.0, 2.2, 2.4), 0.0001));
@@ -2174,7 +2144,7 @@ test "zmath.matrix.mul" {
         f32x4(2.5, 2.6, 2.7, 2.8),
         f32x4(2.9, 3.0, 3.1, 3.2),
     };
-    const c = mul(a, b);
+    const c = mulV(a, b);
     try expect(approxEqAbs(c[0], f32x4(2.5, 2.6, 2.7, 2.8), 0.0001));
     try expect(approxEqAbs(c[1], f32x4(6.18, 6.44, 6.7, 6.96), 0.0001));
     try expect(approxEqAbs(c[2], f32x4(9.86, 10.28, 10.7, 11.12), 0.0001));
@@ -2991,7 +2961,7 @@ test "zmath.quaternion.quatFromNormAxisAngle" {
         const m0 = rotationX(0.25 * math.pi);
         const m1 = rotationY(0.125 * math.pi);
         const mr0 = quatToMat(qmul(q0, q1));
-        const mr1 = mul(m0, m1);
+        const mr1 = mulV(m0, m1);
         try expect(approxEqAbs(mr0[0], mr1[0], 0.0001));
         try expect(approxEqAbs(mr0[1], mr1[1], 0.0001));
         try expect(approxEqAbs(mr0[2], mr1[2], 0.0001));
@@ -3042,9 +3012,9 @@ test "zmath.quaternion.rotate" {
     const forward = f32x4(0.0, 0.0, -1.0, 0.0);
     const up = f32x4(0.0, 1.0, 0.0, 0.0);
     const right = f32x4(1.0, 0.0, 0.0, 0.0);
-    try expect(approxEqAbs(rotate(quat, forward), mul(forward, mat), 0.0001));
-    try expect(approxEqAbs(rotate(quat, up), mul(up, mat), 0.0001));
-    try expect(approxEqAbs(rotate(quat, right), mul(right, mat), 0.0001));
+    try expect(approxEqAbs(rotate(quat, forward), mulV(forward, mat), 0.0001));
+    try expect(approxEqAbs(rotate(quat, up), mulV(up, mat), 0.0001));
+    try expect(approxEqAbs(rotate(quat, right), mulV(right, mat), 0.0001));
 }
 
 pub fn slerp(q0: Quat, q1: Quat, t: f32) Quat {
@@ -3168,9 +3138,9 @@ test "zmath.quaternion.quatFromRollPitchYawV" {
     }
     {
         const m0 = quatToMat(quatFromRollPitchYaw(0.1 * math.pi, 0.2 * math.pi, 0.3 * math.pi));
-        const m1 = mul(
+        const m1 = mulV(
             rotationZ(0.3 * math.pi),
-            mul(rotationX(0.1 * math.pi), rotationY(0.2 * math.pi)),
+            mulV(rotationX(0.1 * math.pi), rotationY(0.2 * math.pi)),
         );
         try expect(approxEqAbs(m0[0], m1[0], 0.0001));
         try expect(approxEqAbs(m0[1], m1[1], 0.0001));

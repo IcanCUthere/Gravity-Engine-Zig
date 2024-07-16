@@ -1,5 +1,7 @@
+const std = @import("std");
 const math = @import("zmath");
 pub usingnamespace math;
+pub usingnamespace std.math;
 
 pub const Vec3 = @Vector(3, f32);
 

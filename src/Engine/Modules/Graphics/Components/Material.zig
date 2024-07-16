@@ -1,12 +1,11 @@
+const util = @import("util");
+
 const flecs = @import("zflecs");
 const stbi = @import("zstbi");
-const coreM = @import("CoreModule");
 
-const std = @import("std");
-const core = @import("core");
+const core = @import("CoreModule");
 
 const gfx = @import("Internal/interface.zig");
-
 const Renderer = @import("Renderer.zig").Renderer;
 
 pub const Material = struct {
@@ -178,7 +177,7 @@ pub const Material = struct {
         self.materialUniforms = try gfx.createBuffer(
             gfx.vkAllocator,
             &gfx.BufferCreateInfo{
-                .size = 2 * @sizeOf(core.math.Mat),
+                .size = 2 * @sizeOf(util.math.Mat),
                 .usage = gfx.BufferUsageFlags{ .uniform_buffer_bit = true },
                 .sharing_mode = gfx.SharingMode.exclusive,
             },
