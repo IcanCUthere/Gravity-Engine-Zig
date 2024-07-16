@@ -7,13 +7,13 @@ pub const Transform = struct {
     const Self = @This();
     var Prefab: flecs.entity_t = undefined;
 
-    worldPosition: math.Vec3 = math.videntity(),
-    worldRotation: math.Vec3 = math.videntity(),
-    worldScale: math.Vec3 = math.videntity(),
+    worldPosition: math.Vec = math.videntity(),
+    worldRotation: math.Vec = math.videntity(),
+    worldScale: math.Vec = math.videntity(),
 
-    localPosition: math.Vec3 = math.videntity(),
-    localRotation: math.Vec3 = math.videntity(),
-    localScale: math.Vec3 = math.videntity(),
+    localPosition: math.Vec = math.videntity(),
+    localRotation: math.Vec = math.videntity(),
+    localScale: math.Vec = math.videntity(),
 
     translationMatrix: math.Mat = math.identity(),
     rotationMatrix: math.Mat = math.identity(),
@@ -34,82 +34,76 @@ pub const Transform = struct {
         return Prefab;
     }
 
-    pub fn getLocalRightVector(self: Self) math.Vec3 {
+    pub fn getLocalRightVector(self: Self) math.Vec {
         return math.vec4ToVec3(math.mulV(
             math.matFromRollPitchYawV(math.vec3ToVec4(math.degreesToRadians(self.localRotation))),
             math.Vec{ 1, 0, 0, 0 },
         ));
     }
 
-    pub fn getLocalUpVector(self: Self) math.Vec3 {
+    pub fn getLocalUpVector(self: Self) math.Vec {
         return math.vec4ToVec3(math.mulV(
             math.matFromRollPitchYawV(math.vec3ToVec4(math.degreesToRadians(self.localRotation))),
             math.Vec{ 0, 1, 0, 0 },
         ));
     }
 
-    pub fn getLocalForwardVector(self: Self) math.Vec3 {
-        return math.vec4ToVec3(math.mulV(
+    pub fn getLocalForwardVector(self: Self) math.Vec {
+        return math.mulV(
             math.matFromRollPitchYawV(math.vec3ToVec4(math.degreesToRadians(self.localRotation))),
             math.Vec{ 0, 0, 1, 0 },
-        ));
-    }
-
-    pub fn getLocalRightVectorLocked(self: Self, withPitch: bool, withYaw: bool, withRoll: bool) math.Vec3 {
-        return math.vec4ToVec3(
-            math.mulV(
-                getLockedRotation(
-                    self.localRotation,
-                    withPitch,
-                    withYaw,
-                    withRoll,
-                ),
-                math.vec3ToVec4(.{ 1, 0, 0 }),
-            ),
         );
     }
 
-    pub fn getLocalUpVectorLocked(self: Self, withPitch: bool, withYaw: bool, withRoll: bool) math.Vec3 {
-        return math.vec4ToVec3(
-            math.mulV(
-                getLockedRotation(
-                    self.localRotation,
-                    withPitch,
-                    withYaw,
-                    withRoll,
-                ),
-                math.vec3ToVec4(.{ 0, 1, 0 }),
+    pub fn getLocalRightVectorLocked(self: Self, withPitch: bool, withYaw: bool, withRoll: bool) math.Vec {
+        return math.mulV(
+            getLockedRotation(
+                self.localRotation,
+                withPitch,
+                withYaw,
+                withRoll,
             ),
+            math.Vec{ 1, 0, 0, 1 },
         );
     }
 
-    pub fn getLocalForwardVectorLocked(self: Self, withPitch: bool, withYaw: bool, withRoll: bool) math.Vec3 {
-        return math.vec4ToVec3(
-            math.mulV(
-                getLockedRotation(
-                    self.localRotation,
-                    withPitch,
-                    withYaw,
-                    withRoll,
-                ),
-                math.vec3ToVec4(.{ 0, 0, 1 }),
+    pub fn getLocalUpVectorLocked(self: Self, withPitch: bool, withYaw: bool, withRoll: bool) math.Vec {
+        return math.mulV(
+            getLockedRotation(
+                self.localRotation,
+                withPitch,
+                withYaw,
+                withRoll,
             ),
+            math.Vec{ 0, 1, 0, 1 },
         );
     }
 
-    pub fn getWorldRightVector() math.Vec3 {
-        return .{ 1, 0, 0 };
+    pub fn getLocalForwardVectorLocked(self: Self, withPitch: bool, withYaw: bool, withRoll: bool) math.Vec {
+        return math.mulV(
+            getLockedRotation(
+                self.localRotation,
+                withPitch,
+                withYaw,
+                withRoll,
+            ),
+            math.Vec{ 0, 0, 1, 1 },
+        );
     }
 
-    pub fn getWorldUpVector() math.Vec3 {
-        return .{ 0, 1, 0 };
+    pub fn getWorldRightVector() math.Vec {
+        return math.Vec{ 1, 0, 0, 0 };
     }
 
-    pub fn getWorldForwardVector() math.Vec3 {
-        return .{ 0, 0, 1 };
+    pub fn getWorldUpVector() math.Vec {
+        return math.Vec{ 0, 1, 0, 0 };
     }
 
-    pub fn getLockedRotation(rot: math.Vec3, withPitch: bool, withYaw: bool, withRoll: bool) math.Mat {
+    pub fn getWorldForwardVector() math.Vec {
+        return math.Vec{ 0, 0, 1, 0 };
+    }
+
+    pub fn getLockedRotation(rot: math.Vec, withPitch: bool, withYaw: bool, withRoll: bool) math.Mat {
         var lockedMat = math.identity();
 
         if (withPitch) {

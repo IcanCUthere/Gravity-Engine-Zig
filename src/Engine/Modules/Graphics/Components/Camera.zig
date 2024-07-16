@@ -37,7 +37,7 @@ pub const Camera = struct {
         self.cameraMatricesUniform = try gfx.createBuffer(
             gfx.vkAllocator,
             &gfx.BufferCreateInfo{
-                .size = 2 * @sizeOf(util.math.Mat) + @sizeOf(util.math.Vec3),
+                .size = 2 * @sizeOf(util.math.Mat) + @sizeOf(util.math.Vec),
                 .usage = gfx.BufferUsageFlags{ .uniform_buffer_bit = true },
                 .sharing_mode = gfx.SharingMode.exclusive,
             },
@@ -56,7 +56,7 @@ pub const Camera = struct {
                 gfx.DescriptorBufferInfo{
                     .buffer = self.cameraMatricesUniform.buffer,
                     .offset = 0,
-                    .range = 2 * @sizeOf(util.math.Mat) + @sizeOf(util.math.Vec3),
+                    .range = 2 * @sizeOf(util.math.Mat) + @sizeOf(util.math.Vec),
                 },
             },
             .p_image_info = undefined,

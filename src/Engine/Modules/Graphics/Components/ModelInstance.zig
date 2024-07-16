@@ -24,7 +24,7 @@ pub const ModelInstance = struct {
         _scene = scene;
     }
 
-    pub fn new(name: [*:0]const u8, model: flecs.entity_t, position: util.math.Vec3) !flecs.entity_t {
+    pub fn new(name: [*:0]const u8, model: flecs.entity_t, position: util.math.Vec) !flecs.entity_t {
         const newEntt = flecs.new_entity(_scene, name);
 
         flecs.add_pair(_scene, newEntt, flecs.IsA, model);

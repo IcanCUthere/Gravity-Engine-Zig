@@ -65,10 +65,9 @@ pub const Game = struct {
                     _ = try graphics.ModelInstance.new(
                         @ptrCast(res.ptr),
                         prefab,
-                        .{ @floatFromInt(x * 5), @floatFromInt(y * 5), @floatFromInt(z * 5) },
+                        .{ @floatFromInt(x * 5), @floatFromInt(y * 5), @floatFromInt(z * 5), 1.0 },
                     );
 
-                    //std.log.info("CREATED {s} {d}", .{ res, num });
                     util.mem.heap.free(res);
                 }
             }

@@ -19,8 +19,8 @@ pub const CameraController = struct {
     moveForward: bool = false,
     moveBackward: bool = false,
 
-    deltaMousePos: math.Vec3 = math.videntity(),
-    mouseSpeed: math.Vec3 = @splat(0.1),
+    deltaMousePos: math.Vec = math.videntity(),
+    mouseSpeed: math.Vec = @splat(0.1),
 
     pub fn register(scene: *flecs.world_t) void {
         flecs.COMPONENT(scene, Self);
@@ -54,7 +54,7 @@ pub const CameraController = struct {
         const input = graphics.InputState;
 
         for (controllers) |*c| {
-            c.deltaMousePos = .{ @floatCast(input.deltaMouseY), @floatCast(input.deltaMouseX), 0.0 };
+            c.deltaMousePos = .{ @floatCast(input.deltaMouseY), @floatCast(input.deltaMouseX), 0.0, 0.0 };
 
             if (input.getKeyState(.w).isPress) {
                 c.moveForward = true;
@@ -102,22 +102,15 @@ pub const CameraController = struct {
 
     pub fn onUpdate(it: *flecs.iter_t, cameras: []core.Transform, controllers: []const Self) void {
         for (cameras, controllers) |*camera, controller| {
-            const deltaSplat: math.Vec3 = @splat(it.delta_time);
-            const negativeOne: math.Vec3 = @splat(-1.0);
-            const deltaSpeed = math.splat(math.Vec3, controller.speed) * deltaSplat;
-
-            camera.localRotation += controller.deltaMousePos * controller.mouseSpeed;
-            camera.localRotation[0] = math.clamp(
-                camera.localRotation[0],
-                -90,
-                90,
-            );
+            const deltaSplat: math.Vec = @splat(it.delta_time);
+            const negativeOne: math.Vec = @splat(-1.0);
+            const deltaSpeed = math.splat(math.Vec, controller.speed) * deltaSplat;
 
             const upVector = core.Transform.getWorldUpVector();
             const rightVector = camera.getLocalRightVectorLocked(false, true, false);
             const forwardVector = camera.getLocalForwardVectorLocked(false, true, false);
 
-            var moveDirection: math.Vec3 = .{ 0, 0, 0 };
+            var moveDirection: math.Vec = math.vzero();
 
             if (controller.moveUp) {
                 moveDirection += upVector * negativeOne;
@@ -138,12 +131,22 @@ pub const CameraController = struct {
                 moveDirection += forwardVector * negativeOne;
             }
 
-            moveDirection = util.math.normalize(moveDirection);
-            camera.localPosition += moveDirection * deltaSpeed;
+            if (math.length3(moveDirection)[0] > math.roundingError) {
+                moveDirection = util.math.normalize3(moveDirection);
+                camera.localPosition += moveDirection * deltaSpeed;
+                camera.translationMatrix = math.translationV(camera.localPosition);
+            }
 
-            camera.translationMatrix = math.translationV(math.vec3ToVec4(camera.localPosition));
+            if (math.length2(controller.deltaMousePos)[0] > math.roundingError) {
+                camera.localRotation += controller.deltaMousePos * controller.mouseSpeed;
+                camera.localRotation[0] = math.clamp(
+                    camera.localRotation[0],
+                    -90,
+                    90,
+                );
 
-            camera.rotationMatrix = core.Transform.getLockedRotation(camera.localRotation, true, true, false);
+                camera.rotationMatrix = core.Transform.getLockedRotation(camera.localRotation, true, true, false);
+            }
         }
     }
 };
