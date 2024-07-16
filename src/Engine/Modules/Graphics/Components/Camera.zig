@@ -35,7 +35,7 @@ pub const Camera = struct {
         self.cameraMatricesUniform = try gfx.createBuffer(
             gfx.vkAllocator,
             &gfx.BufferCreateInfo{
-                .size = 2 * @sizeOf(core.math.Mat),
+                .size = 2 * @sizeOf(core.math.Mat) + @sizeOf(core.math.Vec3),
                 .usage = gfx.BufferUsageFlags{ .uniform_buffer_bit = true },
                 .sharing_mode = gfx.SharingMode.exclusive,
             },
@@ -43,12 +43,6 @@ pub const Camera = struct {
                 .usage = gfx.vma.VMA_MEMORY_USAGE_CPU_ONLY,
             },
         );
-
-        //try gfx.device.allocateDescriptorSets(&gfx.DescriptorSetAllocateInfo{
-        //    .descriptor_pool = Renderer.globalDescriptorPool,
-        //    .p_set_layouts = @ptrCast(&Renderer.globalDescriptorSetLayout),
-        //    .descriptor_set_count = 1,
-        //}, @ptrCast(&Renderer.descriptorSet));
 
         try Renderer.addDescriptorUpdate(gfx.WriteDescriptorSet{
             .dst_set = Renderer.descriptorSet,
@@ -60,7 +54,7 @@ pub const Camera = struct {
                 gfx.DescriptorBufferInfo{
                     .buffer = self.cameraMatricesUniform.buffer,
                     .offset = 0,
-                    .range = 2 * @sizeOf(core.math.Mat),
+                    .range = 2 * @sizeOf(core.math.Mat) + @sizeOf(core.math.Vec3),
                 },
             },
             .p_image_info = undefined,
@@ -77,7 +71,7 @@ pub const Camera = struct {
     pub fn onUpdate(_: *flecs.iter_t, cameras: []Camera, transforms: []coreM.Transform) !void {
         for (cameras, transforms) |c, t| {
             const transformMatrix = core.math.mul(t.translationMatrix, t.rotationMatrix);
-            const data = std.mem.toBytes(transformMatrix) ++ std.mem.toBytes(c.projectionMatrix);
+            const data = std.mem.toBytes(transformMatrix) ++ std.mem.toBytes(c.projectionMatrix) ++ std.mem.toBytes(t.localPosition);
 
             try Renderer.addStagingData(Renderer.StagingData{
                 .data = &data,

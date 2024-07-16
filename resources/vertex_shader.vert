@@ -5,6 +5,7 @@
 layout (set = 0, binding = 0) uniform cameraMatrices {
     mat4 transform;
     mat4 projection;
+    vec3 position;
 } Camera;
 
 layout (set = 2, binding = 0) uniform modelInstanceMatrices {
@@ -17,13 +18,19 @@ layout (location = 2) in vec2 inTexCoords;
 
 layout(location = 0) out vec3 outNormal;
 layout(location = 1) out vec3 outPos;
+
 layout(location = 2) out vec2 outTexCoords;
 layout(location = 3) out vec3 outLightPos;
 
+layout(location = 4) out vec3 outViewPos;
+
 void main() {
-    gl_Position = Camera.projection * Camera.transform * Model.transform * vec4(inPosition, 1.0);
-    outNormal = mat3(transpose(inverse(Camera.transform * Model.transform))) * inNormal;
-    outPos = vec3(Camera.transform * Model.transform * vec4(inPosition, 1.0));  
+    outPos = vec3(Model.transform * vec4(inPosition, 1.0));  
+    outNormal = inNormal;
+    
     outTexCoords = inTexCoords;
-    outLightPos = vec3(Camera.transform * vec4(0.0, 0.0, -400.0, 1.0));
+    outLightPos = vec3(0.0, 0.0, -400.0);
+    outViewPos = Camera.position;
+
+    gl_Position = Camera.projection * Camera.transform * vec4(outPos, 1.0);
 }

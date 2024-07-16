@@ -1,6 +1,6 @@
 // -- Log Settings --
-pub const UsedLogContext = LogAll;
-pub const UsedLogLevel = LogLevel.Abstract;
+pub const UsedLogContext = LogIO;
+pub const UsedLogLevel = LogLevel.Verbose;
 pub const UsedLogType = LogType.Info;
 
 // -- Memory Settings --

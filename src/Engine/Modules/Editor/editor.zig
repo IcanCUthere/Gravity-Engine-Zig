@@ -82,8 +82,6 @@ pub const Editor = struct {
             .imageCount = 3,
         });
 
-        std.log.info("HIER", .{});
-
         inline for (components) |comp| {
             comp.register(scene);
         }

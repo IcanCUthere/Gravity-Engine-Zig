@@ -16,13 +16,6 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const osSubPath = switch (target.result.os.tag) {
-        .windows => "win/",
-        .linux => "linux/",
-        .macos => "mac/",
-        else => "win/",
-    };
-
     std.log.info("Compiling for: {s}-{s}-{s}", .{ @tagName(target.result.cpu.arch), @tagName(target.result.os.tag), @tagName(target.result.abi) });
     std.log.info("Compiling in Mode: {s}\n", .{@tagName(optimize)});
 
@@ -121,7 +114,7 @@ pub fn build(b: *std.Build) void {
 
     const shader_comp = vkgen.ShaderCompileStep.create(
         b,
-        &[_][]const u8{ concatStrings(allocator, "libs/glslc/", osSubPath, "glslc"), "--target-env=vulkan1.2" },
+        &[_][]const u8{ "glslc", "--target-env=vulkan1.2" },
         "-o",
     );
     shader_comp.add("shader_frag", "resources/fragment_shader.frag", .{});
