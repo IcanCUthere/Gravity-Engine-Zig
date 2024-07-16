@@ -10,6 +10,7 @@ layout (set = 0, binding = 0) uniform cameraMatrices {
 
 layout (set = 2, binding = 0) uniform modelInstanceMatrices {
     mat4 transform;
+    vec2 id;
 } Model;
 
 layout (location = 0) in vec3 inPosition;

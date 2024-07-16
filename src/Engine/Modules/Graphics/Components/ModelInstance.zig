@@ -88,7 +88,7 @@ pub const ModelInstance = struct {
     pub fn onUpdate(_: *flecs.iter_t, models: []ModelInstance, transforms: []core.Transform) !void {
         for (models, transforms) |m, t| {
             try Renderer.addStagingData(Renderer.StagingData{
-                .data = mem.sliceAsBytes(&t.translationMatrix),
+                .data = &mem.toBytes(t.translationMatrix),
                 .dstBuffer = m.modelMatrixUniform,
             });
         }

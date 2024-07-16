@@ -155,6 +155,19 @@ pub inline fn uploadMemory(allocator: vma.VmaAllocator, buffer: BufferAllocation
     return offset;
 }
 
+pub inline fn startReadMemory(allocator: vma.VmaAllocator, buffer: BufferAllocation, size: usize) ![]u8 {
+    var deviceMemory: *anyopaque = undefined;
+    if (vma.vmaMapMemory(allocator, buffer.allocation, @ptrCast(&deviceMemory)) != @intFromEnum(vk.Result.success)) {
+        return error.MemoryMapFailed;
+    }
+
+    return @as([*]u8, @ptrCast(deviceMemory))[0..size];
+}
+
+pub inline fn stopReadMemory(allocator: vma.VmaAllocator, buffer: BufferAllocation) void {
+    vma.vmaUnmapMemory(allocator, buffer.allocation);
+}
+
 const apis: []const vk.ApiInfo = &.{
     .{
         .base_commands = .{
@@ -177,6 +190,8 @@ const apis: []const vk.ApiInfo = &.{
             .getPhysicalDeviceMemoryProperties2 = true,
             .getPhysicalDeviceSurfaceCapabilitiesKHR = true,
             .getPhysicalDeviceFeatures = true,
+            .getPhysicalDeviceImageFormatProperties = true,
+            .getPhysicalDeviceFormatProperties = true,
         },
         .device_commands = .{
             .destroyDevice = true,
@@ -246,6 +261,8 @@ const apis: []const vk.ApiInfo = &.{
             .createSampler = true,
             .destroySampler = true,
             .cmdCopyBufferToImage = true,
+            .cmdPushConstants = true,
+            .cmdCopyImageToBuffer = true,
             //.getDeviceBufferMemoryRequirements = true,
             //.getDeviceImageMemoryRequirements = true,
         },

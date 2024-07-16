@@ -112,16 +112,25 @@ pub fn build(b: *std.Build) void {
     modulesModule.addImport("EditorModule", editorModule);
     modulesModule.addImport("GameModule", gameModule);
 
-    const shader_comp = vkgen.ShaderCompileStep.create(
+    const gameShaderCompiler = vkgen.ShaderCompileStep.create(
         b,
         &[_][]const u8{ "glslc", "--target-env=vulkan1.2" },
         "-o",
     );
-    shader_comp.add("shader_frag", "resources/fragment_shader.frag", .{});
-    shader_comp.add("shader_vert", "resources/vertex_shader.vert", .{});
+    gameShaderCompiler.add("shader_vert", "resources/vertex_shader.vert", .{});
+    gameShaderCompiler.add("shader_frag", "resources/fragment_shader.frag", .{});
+
+    const editorShaderCompiler = vkgen.ShaderCompileStep.create(
+        b,
+        &[_][]const u8{ "glslc", "--target-env=vulkan1.2" },
+        "-o",
+    );
+    editorShaderCompiler.add("editor_vert", "resources/vertexShader.vert", .{});
+    editorShaderCompiler.add("editor_frag", "resources/fragmentShader.frag", .{});
 
     //graphicsModule.addImport("shaders", shader_comp.getModule());
-    gameModule.addImport("shaders", shader_comp.getModule());
+    gameModule.addImport("shaders", gameShaderCompiler.getModule());
+    editorModule.addImport("shaders", editorShaderCompiler.getModule());
 
     for ([_]*std.Build.Step.Compile{ exe, tests }) |cmp| {
         cmp.root_module.addImport("zphysics", zphysics.module("root"));
@@ -152,7 +161,8 @@ pub fn build(b: *std.Build) void {
         cmp.root_module.addImport("GraphicsModule", graphicsModule);
         cmp.root_module.addImport("EditorModule", editorModule);
         cmp.root_module.addImport("GameModule", gameModule);
-        cmp.root_module.addImport("shaders", shader_comp.getModule());
+        cmp.root_module.addImport("shaders", gameShaderCompiler.getModule());
+        cmp.root_module.addImport("shaders", editorShaderCompiler.getModule());
 
         b.installArtifact(cmp);
 

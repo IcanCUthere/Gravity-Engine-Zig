@@ -18,12 +18,17 @@ pub const Renderer = struct {
     pub const BufferedImages = 2;
 
     pub var _renderPass: gfx.RenderPass = undefined;
-    var _cmdPools: []gfx.CommandPool = undefined;
-    var _cmdLists: []gfx.CommandBuffer = undefined;
+
+    var renderCmdPools: []gfx.CommandPool = undefined;
+    var renderCmdLists: []gfx.CommandBuffer = undefined;
+
+    var transferCmdPools: []gfx.CommandPool = undefined;
+    var transferCmdLists: []gfx.CommandBuffer = undefined;
+
     var _semaphores: []gfx.Semaphore = undefined;
-    var _timelineSemaphore: gfx.Semaphore = undefined;
-    var _semaphoreValue: u64 = 0;
-    var imageIndex: u32 = 0;
+    pub var _timelineSemaphore: gfx.Semaphore = undefined;
+    pub var _semaphoreValue: u64 = 0;
+    pub var imageIndex: u32 = 0;
 
     var _stagingBuffers: [BufferedImages]gfx.BufferAllocation = .{undefined} ** BufferedImages;
     var _stagingBufferSizes: [BufferedImages]u64 = .{0} ** BufferedImages;
@@ -70,7 +75,7 @@ pub const Renderer = struct {
     };
 
     pub fn getCurrentCmdList() gfx.CommandBuffer {
-        return _cmdLists[imageIndex];
+        return renderCmdLists[imageIndex];
     }
 
     pub fn init(format: gfx.Format) !void {
@@ -79,20 +84,34 @@ pub const Renderer = struct {
 
         _renderPass = try gfx.createRenderPass(format, true);
 
-        _cmdPools = try util.mem.heap.alloc(gfx.CommandPool, BufferedImages);
-        _cmdLists = try util.mem.heap.alloc(gfx.CommandBuffer, BufferedImages);
+        renderCmdPools = try util.mem.heap.alloc(gfx.CommandPool, BufferedImages);
+        renderCmdLists = try util.mem.heap.alloc(gfx.CommandBuffer, BufferedImages);
+
+        transferCmdPools = try util.mem.heap.alloc(gfx.CommandPool, BufferedImages);
+        transferCmdLists = try util.mem.heap.alloc(gfx.CommandBuffer, BufferedImages);
+
         _semaphores = try util.mem.heap.alloc(gfx.Semaphore, BufferedImages);
 
-        for (_cmdPools, _cmdLists, _semaphores) |*pool, *list, *sem| {
-            pool.* = try gfx.device.createCommandPool(&.{
+        for (renderCmdPools, renderCmdLists, transferCmdPools, transferCmdLists, _semaphores) |*rpool, *rlist, *tpool, *tlist, *sem| {
+            rpool.* = try gfx.device.createCommandPool(&.{
+                .queue_family_index = gfx.renderFamily,
+            }, null);
+
+            tpool.* = try gfx.device.createCommandPool(&.{
                 .queue_family_index = gfx.renderFamily,
             }, null);
 
             try gfx.device.allocateCommandBuffers(&.{
-                .command_pool = pool.*,
+                .command_pool = rpool.*,
                 .level = gfx.CommandBufferLevel.primary,
                 .command_buffer_count = 1,
-            }, @ptrCast(list));
+            }, @ptrCast(rlist));
+
+            try gfx.device.allocateCommandBuffers(&.{
+                .command_pool = tpool.*,
+                .level = gfx.CommandBufferLevel.primary,
+                .command_buffer_count = 1,
+            }, @ptrCast(tlist));
 
             sem.* = try gfx.device.createSemaphore(&.{}, null);
         }
@@ -161,14 +180,18 @@ pub const Renderer = struct {
             gfx.destroyBuffer(gfx.vkAllocator, b);
         }
 
-        for (_cmdPools, _semaphores) |pool, sem| {
+        for (renderCmdPools, transferCmdPools, _semaphores) |rpool, tpool, sem| {
             gfx.device.destroySemaphore(sem, null);
-            gfx.device.destroyCommandPool(pool, null);
+            gfx.device.destroyCommandPool(rpool, null);
+            gfx.device.destroyCommandPool(tpool, null);
         }
 
         util.mem.heap.free(_semaphores);
-        util.mem.heap.free(_cmdLists);
-        util.mem.heap.free(_cmdPools);
+        util.mem.heap.free(renderCmdLists);
+        util.mem.heap.free(renderCmdPools);
+        util.mem.heap.free(transferCmdLists);
+        util.mem.heap.free(transferCmdPools);
+
         gfx.device.destroyRenderPass(_renderPass, null);
     }
 
@@ -322,7 +345,7 @@ pub const Renderer = struct {
         _ = try gfx.uploadMemory(gfx.vkAllocator, _stagingBuffers[imageIndex], datas.items, 0);
 
         gfx.device.cmdPipelineBarrier(
-            _cmdLists[imageIndex],
+            transferCmdLists[imageIndex],
             .{ .top_of_pipe_bit = true },
             .{ .transfer_bit = true },
             .{},
@@ -342,7 +365,7 @@ pub const Renderer = struct {
                 bufCopy.src_offset = srcOffset;
 
                 gfx.device.cmdCopyBuffer(
-                    _cmdLists[imageIndex],
+                    transferCmdLists[imageIndex],
                     _stagingBuffers[imageIndex].buffer,
                     dstBuffer.buffer,
                     1,
@@ -357,7 +380,7 @@ pub const Renderer = struct {
                 imgCopy.buffer_row_length = 0;
 
                 gfx.device.cmdCopyBufferToImage(
-                    _cmdLists[imageIndex],
+                    transferCmdLists[imageIndex],
                     _stagingBuffers[imageIndex].buffer,
                     dstImage.image,
                     gfx.ImageLayout.transfer_dst_optimal,
@@ -373,7 +396,7 @@ pub const Renderer = struct {
 
         for (postBarriers.items) |barrier| {
             gfx.device.cmdPipelineBarrier(
-                _cmdLists[imageIndex],
+                transferCmdLists[imageIndex],
                 .{ .transfer_bit = true },
                 barrier.stage,
                 .{},
@@ -390,14 +413,7 @@ pub const Renderer = struct {
     }
 
     pub fn updateData(_: *flecs.iter_t) !void {
-        try uploadStagingData();
-        try updateDescriptorSets();
-    }
-
-    pub fn beginFrame(_: *flecs.iter_t, viewport: []Viewport) !void {
-        try viewport[0].nextFrame(_semaphores[imageIndex]);
-
-        const waitValue: u64 = _semaphoreValue;
+        var waitValue: u64 = _semaphoreValue;
 
         _ = try gfx.device.waitSemaphores(&gfx.SemaphoreWaitInfo{
             .p_semaphores = @ptrCast(&_timelineSemaphore),
@@ -405,9 +421,49 @@ pub const Renderer = struct {
             .semaphore_count = 1,
         }, ~@as(u64, 0));
 
-        try gfx.device.resetCommandPool(_cmdPools[imageIndex], .{});
+        try gfx.device.resetCommandPool(transferCmdPools[imageIndex], .{});
 
-        try gfx.device.beginCommandBuffer(_cmdLists[imageIndex], &gfx.CommandBufferBeginInfo{
+        try gfx.device.beginCommandBuffer(transferCmdLists[imageIndex], &gfx.CommandBufferBeginInfo{
+            .flags = gfx.CommandBufferUsageFlags{ .one_time_submit_bit = true },
+            .p_inheritance_info = null,
+        });
+
+        try uploadStagingData();
+        try updateDescriptorSets();
+
+        try gfx.device.endCommandBuffer(transferCmdLists[imageIndex]);
+
+        const signalValue = _semaphoreValue + 1;
+        waitValue = _semaphoreValue;
+        _semaphoreValue += 1;
+
+        try gfx.device.queueSubmit(gfx.renderQueue, 1, &[_]gfx.SubmitInfo{
+            gfx.SubmitInfo{
+                .p_next = &gfx.TimelineSemaphoreSubmitInfo{
+                    .p_signal_semaphore_values = @ptrCast(&signalValue),
+                    .signal_semaphore_value_count = 1,
+                    .p_wait_semaphore_values = @ptrCast(&waitValue),
+                    .wait_semaphore_value_count = 1,
+                },
+                .p_command_buffers = &[_]gfx.CommandBuffer{transferCmdLists[imageIndex]},
+                .command_buffer_count = 1,
+                .p_wait_dst_stage_mask = &[_]gfx.PipelineStageFlags{
+                    gfx.PipelineStageFlags{ .transfer_bit = true },
+                },
+                .p_signal_semaphores = &[_]gfx.Semaphore{_timelineSemaphore},
+                .signal_semaphore_count = 1,
+                .p_wait_semaphores = &[_]gfx.Semaphore{_timelineSemaphore},
+                .wait_semaphore_count = 1,
+            },
+        }, gfx.Fence.null_handle);
+    }
+
+    pub fn beginFrame(_: *flecs.iter_t, viewport: []Viewport) !void {
+        try viewport[0].nextFrame(_semaphores[imageIndex]);
+
+        try gfx.device.resetCommandPool(renderCmdPools[imageIndex], .{});
+
+        try gfx.device.beginCommandBuffer(renderCmdLists[imageIndex], &gfx.CommandBufferBeginInfo{
             .flags = gfx.CommandBufferUsageFlags{ .one_time_submit_bit = true },
             .p_inheritance_info = &gfx.CommandBufferInheritanceInfo{
                 .render_pass = _renderPass,
@@ -432,7 +488,7 @@ pub const Renderer = struct {
             },
         };
 
-        gfx.device.cmdBeginRenderPass(_cmdLists[imageIndex], &gfx.RenderPassBeginInfo{
+        gfx.device.cmdBeginRenderPass(renderCmdLists[imageIndex], &gfx.RenderPassBeginInfo{
             .render_pass = _renderPass,
             .framebuffer = viewport[0].getFramebuffer(),
             .render_area = renderArea,
@@ -453,8 +509,8 @@ pub const Renderer = struct {
             },
         };
 
-        gfx.device.cmdBindPipeline(_cmdLists[imageIndex], gfx.PipelineBindPoint.graphics, material[0].pipeline);
-        gfx.device.cmdSetViewport(_cmdLists[imageIndex], 0, 1, @ptrCast(&gfx.Viewport{
+        gfx.device.cmdBindPipeline(renderCmdLists[imageIndex], gfx.PipelineBindPoint.graphics, material[0].pipeline);
+        gfx.device.cmdSetViewport(renderCmdLists[imageIndex], 0, 1, @ptrCast(&gfx.Viewport{
             .width = @floatFromInt(viewport[0].getWidth()),
             .height = -@as(f32, @floatFromInt(viewport[0].getHeight())),
             .min_depth = 0.0,
@@ -462,10 +518,10 @@ pub const Renderer = struct {
             .x = 0.0,
             .y = @floatFromInt(viewport[0].getHeight()),
         }));
-        gfx.device.cmdSetScissor(_cmdLists[imageIndex], 0, 1, @ptrCast(&renderArea));
+        gfx.device.cmdSetScissor(renderCmdLists[imageIndex], 0, 1, @ptrCast(&renderArea));
 
-        gfx.device.cmdBindVertexBuffers(_cmdLists[imageIndex], 0, 1, @ptrCast(&model[0].vertexBuffer.buffer), &[_]u64{0});
-        gfx.device.cmdBindIndexBuffer(_cmdLists[imageIndex], model[0].indexBuffer.buffer, 0, gfx.IndexType.uint32);
+        gfx.device.cmdBindVertexBuffers(renderCmdLists[imageIndex], 0, 1, @ptrCast(&model[0].vertexBuffer.buffer), &[_]u64{0});
+        gfx.device.cmdBindIndexBuffer(renderCmdLists[imageIndex], model[0].indexBuffer.buffer, 0, gfx.IndexType.uint32);
 
         const setsToBind = [_]gfx.DescriptorSet{
             Renderer.descriptorSet,
@@ -473,20 +529,20 @@ pub const Renderer = struct {
             model[0].descriptorSet,
         };
 
-        gfx.device.cmdBindDescriptorSets(_cmdLists[imageIndex], gfx.PipelineBindPoint.graphics, material[0].pipelineLayout, 0, setsToBind.len, @ptrCast(&setsToBind), 0, null);
+        gfx.device.cmdBindDescriptorSets(renderCmdLists[imageIndex], gfx.PipelineBindPoint.graphics, material[0].pipelineLayout, 0, setsToBind.len, @ptrCast(&setsToBind), 0, null);
 
         for (modelInstances) |intance| {
-            gfx.device.cmdBindDescriptorSets(_cmdLists[imageIndex], gfx.PipelineBindPoint.graphics, material[0].pipelineLayout, 2, 1, @ptrCast(&intance.descriptorSet), 0, null);
-            gfx.device.cmdDrawIndexed(_cmdLists[imageIndex], @intCast(model[0].mesh.indexData.len), 1, 0, 0, 0);
+            gfx.device.cmdBindDescriptorSets(renderCmdLists[imageIndex], gfx.PipelineBindPoint.graphics, material[0].pipelineLayout, 2, 1, @ptrCast(&intance.descriptorSet), 0, null);
+            gfx.device.cmdDrawIndexed(renderCmdLists[imageIndex], @intCast(model[0].mesh.indexData.len), 1, 0, 0, 0);
         }
     }
 
     pub fn stopRendering(_: *flecs.iter_t) void {
-        gfx.device.cmdEndRenderPass(_cmdLists[imageIndex]);
+        gfx.device.cmdEndRenderPass(renderCmdLists[imageIndex]);
     }
 
     pub fn endFrame(_: *flecs.iter_t, viewport: []Viewport) !void {
-        try gfx.device.endCommandBuffer(_cmdLists[imageIndex]);
+        try gfx.device.endCommandBuffer(renderCmdLists[imageIndex]);
 
         const signalValue = _semaphoreValue + 1;
         const waitValue = _semaphoreValue;
@@ -500,7 +556,7 @@ pub const Renderer = struct {
                     .p_wait_semaphore_values = @ptrCast(&waitValue),
                     .wait_semaphore_value_count = 2,
                 },
-                .p_command_buffers = &[_]gfx.CommandBuffer{_cmdLists[imageIndex]},
+                .p_command_buffers = &[_]gfx.CommandBuffer{renderCmdLists[imageIndex]},
                 .command_buffer_count = 1,
                 .p_wait_dst_stage_mask = &[_]gfx.PipelineStageFlags{ .{ .color_attachment_output_bit = true }, .{ .color_attachment_output_bit = true } },
                 .p_signal_semaphores = &[_]gfx.Semaphore{ _timelineSemaphore, _semaphores[imageIndex] },

@@ -113,8 +113,8 @@ pub const Graphics = struct {
             flecs.ADD_SYSTEM(scene, "Update " ++ @typeName(comp), flecs.PreStore, comp.onUpdate);
         }
 
-        flecs.ADD_SYSTEM(scene, "Begin Frame", flecs.PreStore, Renderer.beginFrame);
         flecs.ADD_SYSTEM(scene, "Transfer Data", flecs.PreStore, Renderer.updateData);
+        flecs.ADD_SYSTEM(scene, "Begin Frame", flecs.PreStore, Renderer.beginFrame);
         flecs.ADD_SYSTEM(scene, "Start Rendering", flecs.PreStore, Renderer.startRendering);
 
         flecs.SYSTEM(scene, "Render", flecs.OnStore, &desc);

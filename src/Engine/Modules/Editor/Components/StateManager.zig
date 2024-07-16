@@ -6,7 +6,9 @@ const graphics = @import("GraphicsModule");
 pub const StateManager = struct {
     const Self = @This();
 
-    inEditor: bool = false,
+    pub var inEditor: bool = false;
+
+    idk: u32 = 0,
 
     pub fn register(scene: *flecs.world_t) void {
         flecs.COMPONENT(scene, Self);
@@ -24,21 +26,20 @@ pub const StateManager = struct {
 
     pub fn deinit(_: Self) void {}
 
-    pub fn onEvent(it: *flecs.iter_t, stateMangs: []Self) void {
-        const stateManager = &stateMangs[0];
+    pub fn onEvent(it: *flecs.iter_t, _: []Self) void {
         const input = graphics.InputState;
 
         const viewport = flecs.get(it.world, graphics.Graphics.mainViewport, graphics.Viewport).?;
 
-        if (input.getKeyState(.F1).isPress and !stateManager.inEditor) {
-            stateManager.inEditor = true;
+        if (input.getKeyState(.F1).isPress and !inEditor) {
+            inEditor = true;
             viewport.setCursorEnabled(true);
-        } else if (input.getKeyState(.F1).isPress and stateManager.inEditor) {
-            stateManager.inEditor = false;
+        } else if (input.getKeyState(.F1).isPress and inEditor) {
+            inEditor = false;
             viewport.setCursorEnabled(false);
         }
 
-        if (stateManager.inEditor) {
+        if (inEditor) {
             input.deltaMouseX = 0;
             input.deltaMouseY = 0;
         }

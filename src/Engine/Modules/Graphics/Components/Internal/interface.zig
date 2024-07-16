@@ -51,6 +51,20 @@ pub fn init() !void {
     const properties = instance.getPhysicalDeviceProperties(physicalDevice);
     util.log.print("Used Graphics Card: {s}, Driver Version: {d}", .{ properties.device_name, properties.driver_version }, .Info, .Abstract, .{ .Vulkan = true });
 
+    inline for (@typeInfo(vk.Format).Enum.fields) |format| {
+        const props = instance.getPhysicalDeviceFormatProperties(
+            physicalDevice,
+            @enumFromInt(format.value),
+        );
+
+        if (props.optimal_tiling_features.transfer_src_bit and
+            props.linear_tiling_features.transfer_dst_bit and
+            props.optimal_tiling_features.color_attachment_bit)
+        {
+            util.log.info("Format supported: {s}", .{format.name});
+        }
+    }
+
     renderFamily = try getGraphicsFamily(physicalDevice);
 
     var familyCount: u32 = undefined;
