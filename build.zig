@@ -78,6 +78,7 @@ pub fn build(b: *std.Build) void {
     graphicsModule.addImport("util", utils);
     graphicsModule.addImport("vulkan", vkzig.module("vulkan-zig"));
     graphicsModule.addImport("zglfw", zglfw.module("root"));
+    graphicsModule.addImport("ztracy", ztracy.module("root"));
     graphicsModule.addImport("zstbi", zstbi.module("root"));
     graphicsModule.addIncludePath(b.path("libs/vulkan/"));
     graphicsModule.addCSourceFile(.{

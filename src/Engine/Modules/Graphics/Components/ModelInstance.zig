@@ -2,6 +2,7 @@ const util = @import("util");
 const mem = util.mem;
 
 const flecs = @import("zflecs");
+const tracy = @import("ztracy");
 
 const core = @import("CoreModule");
 
@@ -39,6 +40,9 @@ pub const ModelInstance = struct {
     }
 
     pub fn init(model: flecs.entity_t) !Self {
+        const tracy_zone = tracy.ZoneNC(@src(), "Init model instance", 0x00_ff_ff_00);
+        defer tracy_zone.End();
+
         var self: Self = undefined;
 
         const matComp = flecs.get(_scene, model, Material).?;
@@ -82,10 +86,16 @@ pub const ModelInstance = struct {
     }
 
     pub fn deinit(self: *Self) void {
+        const tracy_zone = tracy.ZoneNC(@src(), "Deinit model instance", 0x00_ff_ff_00);
+        defer tracy_zone.End();
+
         gfx.destroyBuffer(gfx.vkAllocator, self.modelMatrixUniform);
     }
 
     pub fn onUpdate(_: *flecs.iter_t, models: []ModelInstance, transforms: []core.Transform) !void {
+        const tracy_zone = tracy.ZoneNC(@src(), "Update model instances", 0x00_ff_ff_00);
+        defer tracy_zone.End();
+
         for (models, transforms) |m, t| {
             try Renderer.addStagingData(Renderer.StagingData{
                 .data = &mem.toBytes(t.translationMatrix),

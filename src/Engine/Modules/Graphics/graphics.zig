@@ -124,10 +124,10 @@ pub const Graphics = struct {
 
         flecs.ADD_SYSTEM(scene, "Clear Events", core.Pipeline.postStore, clearEvents);
 
-        BufferedEventData.mouseX = viewport.getMousePosition()[0];
-        BufferedEventData.mouseY = viewport.getMousePosition()[1];
-        BufferedEventData.windowSizeX = viewport.getWidth();
-        BufferedEventData.windowSizeY = viewport.getHeight();
+        InputState.mouseX = viewport.getMousePosition()[0];
+        InputState.mouseY = viewport.getMousePosition()[1];
+        InputState.viewportX = viewport.getWidth();
+        InputState.viewportY = viewport.getHeight();
     }
 
     pub fn preDeinit() !void {
@@ -146,22 +146,6 @@ pub const Graphics = struct {
         glfw.terminate();
     }
 
-    const BufferedEventData = struct {
-        var deltaMouseX: f64 = 0;
-        var deltaMouseY: f64 = 0;
-
-        var mouseX: f64 = 0;
-        var mouseY: f64 = 0;
-
-        var keyStates: [400]evnt.KeyState = [1]evnt.KeyState{.{}} ** 400;
-
-        var deltaWindowSizeX: i32 = 0;
-        var deltaWindowSizeY: i32 = 0;
-
-        var windowSizeX: u32 = 0;
-        var windowSizeY: u32 = 0;
-    };
-
     fn updateFOW(_: *flecs.iter_t, cameras: []Camera, viewports: []Viewport) void {
         if (InputState.deltaViewportX != 0 or InputState.deltaViewportY != 0) {
             const aspectRatio = @as(f32, @floatFromInt(InputState.viewportX)) / @as(f32, @floatFromInt(InputState.viewportY));
@@ -171,32 +155,21 @@ pub const Graphics = struct {
     }
 
     fn uploadEvents(_: *flecs.iter_t) !void {
+        const tracy_zone = tracy.ZoneNC(@src(), "Poll events", 0x00_ff_ff_00);
+        defer tracy_zone.End();
+
         //calls onEvent
         Viewport.pollEvents();
-
-        InputState.deltaMouseX = BufferedEventData.deltaMouseX;
-        InputState.deltaMouseY = BufferedEventData.deltaMouseY;
-
-        InputState.mouseX = BufferedEventData.mouseX;
-        InputState.mouseY = BufferedEventData.mouseY;
-
-        InputState.keyStates = BufferedEventData.keyStates;
-
-        InputState.viewportX = BufferedEventData.windowSizeX;
-        InputState.viewportY = BufferedEventData.windowSizeY;
-
-        InputState.deltaViewportX = BufferedEventData.deltaWindowSizeX;
-        InputState.deltaViewportY = BufferedEventData.deltaWindowSizeY;
     }
 
     fn clearEvents(_: *flecs.iter_t) void {
-        BufferedEventData.deltaMouseX = 0;
-        BufferedEventData.deltaMouseY = 0;
+        InputState.deltaMouseX = 0;
+        InputState.deltaMouseY = 0;
 
-        BufferedEventData.deltaWindowSizeX = 0;
-        BufferedEventData.deltaWindowSizeY = 0;
+        InputState.deltaViewportX = 0;
+        InputState.deltaViewportY = 0;
 
-        for (&BufferedEventData.keyStates) |*s| {
+        for (&InputState.keyStates) |*s| {
             s.isPress = false;
             s.isRelease = false;
             s.isRepeat = false;
@@ -222,11 +195,11 @@ pub const Graphics = struct {
     }
 
     fn onWindowResize(e: evnt.WindowResizeEvent) void {
-        BufferedEventData.deltaWindowSizeX = @as(i32, @intCast(e.width)) - @as(i32, @intCast(BufferedEventData.windowSizeX));
-        BufferedEventData.deltaWindowSizeY = @as(i32, @intCast(e.height)) - @as(i32, @intCast(BufferedEventData.windowSizeY));
+        InputState.deltaViewportX = @as(i32, @intCast(e.width)) - @as(i32, @intCast(InputState.viewportX));
+        InputState.deltaViewportY = @as(i32, @intCast(e.height)) - @as(i32, @intCast(InputState.viewportY));
 
-        BufferedEventData.windowSizeX = e.width;
-        BufferedEventData.windowSizeY = e.height;
+        InputState.viewportX = e.width;
+        InputState.viewportY = e.height;
     }
 
     fn onWindowClose(_: evnt.WindowCloseEvent) void {
@@ -235,23 +208,23 @@ pub const Graphics = struct {
 
     fn onKey(e: evnt.KeyEvent) void {
         if (e.action == .Pressed) {
-            BufferedEventData.keyStates[@intFromEnum(e.key)].isPress = true;
-            BufferedEventData.keyStates[@intFromEnum(e.key)].isHold = true;
+            InputState.keyStates[@intFromEnum(e.key)].isPress = true;
+            InputState.keyStates[@intFromEnum(e.key)].isHold = true;
         } else if (e.action == .Released) {
-            BufferedEventData.keyStates[@intFromEnum(e.key)].isHold = false;
-            BufferedEventData.keyStates[@intFromEnum(e.key)].isPress = false;
-            BufferedEventData.keyStates[@intFromEnum(e.key)].isRelease = true;
+            InputState.keyStates[@intFromEnum(e.key)].isHold = false;
+            InputState.keyStates[@intFromEnum(e.key)].isPress = false;
+            InputState.keyStates[@intFromEnum(e.key)].isRelease = true;
         } else if (e.action == .Repeated) {
-            BufferedEventData.keyStates[@intFromEnum(e.key)].isRepeat = true;
+            InputState.keyStates[@intFromEnum(e.key)].isRepeat = true;
         }
     }
 
     fn onMousePosition(e: evnt.MousePositionEvent) void {
-        BufferedEventData.deltaMouseX = e.x - BufferedEventData.mouseX;
-        BufferedEventData.deltaMouseY = e.y - BufferedEventData.mouseY;
+        InputState.deltaMouseX = e.x - InputState.mouseX;
+        InputState.deltaMouseY = e.y - InputState.mouseY;
 
-        BufferedEventData.mouseX = e.x;
-        BufferedEventData.mouseY = e.y;
+        InputState.mouseX = e.x;
+        InputState.mouseY = e.y;
     }
 
     pub var mainCamera: flecs.entity_t = undefined;

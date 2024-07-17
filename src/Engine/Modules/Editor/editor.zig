@@ -42,22 +42,6 @@ pub const Editor = struct {
         StateManager,
     };
 
-    fn loader(n: [*:0]const u8, handle: *const anyopaque) ?*const anyopaque {
-        return @ptrCast(gfx.baseDispatch.dispatch.vkGetInstanceProcAddr(@enumFromInt(@intFromPtr(handle)), n).?);
-    }
-
-    fn guiNextFrame(_: *flecs.iter_t, viewport: []graphics.Viewport) !void {
-        gui.backend.newFrame(viewport[0].getWidth(), viewport[0].getHeight());
-
-        var open: bool = true;
-        gui.showDemoWindow(&open);
-
-        gui.backend.draw(@ptrFromInt(@intFromEnum(graphics.Renderer.getCurrentCmdList())));
-
-        gui.UpdatePlatformWindows();
-        gui.RenderPlatformWindowsDefault();
-    }
-
     pub fn init(scene: *flecs.world_t) !void {
         const tracy_zone = tracy.ZoneNC(@src(), "Editor Module Init", 0x00_ff_ff_00);
         defer tracy_zone.End();
@@ -110,112 +94,7 @@ pub const Editor = struct {
             .command_buffer_count = 1,
         }, @ptrCast(&cmdList));
 
-        readBackBuffer = try gfx.createBuffer(
-            gfx.vkAllocator,
-            &gfx.BufferCreateInfo{
-                .size = viewport.getWidth() * viewport.getHeight() * 2 * @sizeOf(u32),
-                .usage = gfx.BufferUsageFlags{ .transfer_dst_bit = true },
-                .sharing_mode = gfx.SharingMode.exclusive,
-            },
-            &gfx.vma.VmaAllocationCreateInfo{
-                .usage = gfx.vma.VMA_MEMORY_USAGE_CPU_TO_GPU,
-            },
-        );
-
-        depthImage = try gfx.createImage(gfx.vkAllocator, &.{
-            .image_type = gfx.ImageType.@"2d",
-            .format = gfx.Format.d16_unorm,
-            .extent = gfx.Extent3D{
-                .width = viewport.getWidth(),
-                .height = viewport.getHeight(),
-                .depth = 1,
-            },
-            .array_layers = 1,
-            .mip_levels = 1,
-            .samples = gfx.SampleCountFlags{ .@"1_bit" = true },
-            .tiling = gfx.ImageTiling.optimal,
-            .initial_layout = gfx.ImageLayout.undefined,
-            .usage = gfx.ImageUsageFlags{ .depth_stencil_attachment_bit = true },
-            .sharing_mode = gfx.SharingMode.exclusive,
-            .p_queue_family_indices = null,
-            .queue_family_index_count = 0,
-        }, &.{
-            .usage = gfx.vma.VMA_MEMORY_USAGE_GPU_ONLY,
-        });
-
-        writeToImage = try gfx.createImage(gfx.vkAllocator, &.{
-            .image_type = gfx.ImageType.@"2d",
-            .format = gfx.Format.r32g32_uint,
-            .extent = gfx.Extent3D{
-                .width = viewport.getWidth(),
-                .height = viewport.getHeight(),
-                .depth = 1,
-            },
-            .array_layers = 1,
-            .mip_levels = 1,
-            .samples = gfx.SampleCountFlags{ .@"1_bit" = true },
-            .tiling = gfx.ImageTiling.optimal,
-            .initial_layout = gfx.ImageLayout.undefined,
-            .usage = gfx.ImageUsageFlags{
-                .color_attachment_bit = true,
-                .transfer_src_bit = true,
-            },
-            .sharing_mode = gfx.SharingMode.exclusive,
-            .p_queue_family_indices = null,
-            .queue_family_index_count = 0,
-        }, &.{
-            .usage = gfx.vma.VMA_MEMORY_USAGE_GPU_ONLY,
-        });
-
-        depthImageView = try gfx.device.createImageView(&.{
-            .image = depthImage.image,
-            .view_type = gfx.ImageViewType.@"2d",
-            .format = gfx.Format.d16_unorm,
-            .components = gfx.ComponentMapping{
-                .a = gfx.ComponentSwizzle.a,
-                .r = gfx.ComponentSwizzle.r,
-                .g = gfx.ComponentSwizzle.g,
-                .b = gfx.ComponentSwizzle.b,
-            },
-            .subresource_range = gfx.ImageSubresourceRange{
-                .aspect_mask = gfx.ImageAspectFlags{ .depth_bit = true },
-                .base_array_layer = 0,
-                .layer_count = 1,
-                .base_mip_level = 0,
-                .level_count = 1,
-            },
-        }, null);
-
-        writeToImageView = try gfx.device.createImageView(&.{
-            .image = writeToImage.image,
-            .view_type = gfx.ImageViewType.@"2d",
-            .format = gfx.Format.r32g32_uint,
-            .components = gfx.ComponentMapping{
-                .a = gfx.ComponentSwizzle.a,
-                .r = gfx.ComponentSwizzle.r,
-                .g = gfx.ComponentSwizzle.g,
-                .b = gfx.ComponentSwizzle.b,
-            },
-            .subresource_range = gfx.ImageSubresourceRange{
-                .aspect_mask = gfx.ImageAspectFlags{ .color_bit = true },
-                .base_array_layer = 0,
-                .layer_count = 1,
-                .base_mip_level = 0,
-                .level_count = 1,
-            },
-        }, null);
-
-        framebuffer = try gfx.device.createFramebuffer(&gfx.FramebufferCreateInfo{
-            .render_pass = renderPass,
-            .p_attachments = &.{
-                writeToImageView,
-                depthImageView,
-            },
-            .attachment_count = 2,
-            .width = viewport.getWidth(),
-            .height = viewport.getHeight(),
-            .layers = 1,
-        }, null);
+        try createReadBackData(graphics.InputState.viewportX, graphics.InputState.viewportY);
 
         gui.init(util.mem.heap);
         gui.io.setConfigFlags(gui.ConfigFlags{
@@ -286,14 +165,7 @@ pub const Editor = struct {
         gfx.device.destroyRenderPass(renderPass, null);
         gfx.device.destroyCommandPool(cmdPool, null);
 
-        gfx.device.destroyFramebuffer(framebuffer, null);
-
-        gfx.device.destroyImageView(depthImageView, null);
-        gfx.device.destroyImageView(writeToImageView, null);
-
-        gfx.destroyImage(gfx.vkAllocator, depthImage);
-        gfx.destroyImage(gfx.vkAllocator, writeToImage);
-        gfx.destroyBuffer(gfx.vkAllocator, readBackBuffer);
+        destroyReadBackData();
 
         gfx.device.destroyPipeline(pipeline, null);
         gfx.device.destroyPipelineLayout(pipelineLayout, null);
@@ -302,14 +174,38 @@ pub const Editor = struct {
         gfx.device.destroyShaderModule(fragmentModule, null);
     }
 
+    fn loader(n: [*:0]const u8, handle: *const anyopaque) ?*const anyopaque {
+        return @ptrCast(gfx.baseDispatch.dispatch.vkGetInstanceProcAddr(@enumFromInt(@intFromPtr(handle)), n).?);
+    }
+
+    fn guiNextFrame(_: *flecs.iter_t, viewport: []graphics.Viewport) !void {
+        const tracy_zone = tracy.ZoneNC(@src(), "Render gui", 0x00_ff_ff_00);
+        defer tracy_zone.End();
+
+        gui.backend.newFrame(viewport[0].getWidth(), viewport[0].getHeight());
+
+        var open: bool = true;
+        gui.showDemoWindow(&open);
+
+        gui.backend.draw(@ptrFromInt(@intFromEnum(graphics.Renderer.getCurrentCmdList())));
+
+        gui.UpdatePlatformWindows();
+        gui.RenderPlatformWindowsDefault();
+    }
+
     pub fn render(
         it: *flecs.iter_t,
         modelInstances: []const graphics.ModelInstance,
         model: []const graphics.Model,
         viewport: []const graphics.Viewport,
     ) !void {
-        const tracy_zone = tracy.ZoneNC(@src(), "Render", 0x00_ff_ff_00);
+        const tracy_zone = tracy.ZoneNC(@src(), "Render IDs", 0x00_ff_ff_00);
         defer tracy_zone.End();
+
+        if (graphics.InputState.deltaViewportX != 0 or graphics.InputState.deltaViewportY != 0) {
+            destroyReadBackData();
+            try createReadBackData(graphics.InputState.viewportX, graphics.InputState.viewportY);
+        }
 
         try gfx.device.resetCommandPool(cmdPool, .{});
 
@@ -518,6 +414,126 @@ pub const Editor = struct {
                 }
             }
         }
+    }
+
+    fn createReadBackData(width: u32, height: u32) !void {
+        readBackBuffer = try gfx.createBuffer(
+            gfx.vkAllocator,
+            &gfx.BufferCreateInfo{
+                .size = width * height * 2 * @sizeOf(u32),
+                .usage = gfx.BufferUsageFlags{ .transfer_dst_bit = true },
+                .sharing_mode = gfx.SharingMode.exclusive,
+            },
+            &gfx.vma.VmaAllocationCreateInfo{
+                .usage = gfx.vma.VMA_MEMORY_USAGE_CPU_TO_GPU,
+            },
+        );
+
+        depthImage = try gfx.createImage(gfx.vkAllocator, &.{
+            .image_type = gfx.ImageType.@"2d",
+            .format = gfx.Format.d16_unorm,
+            .extent = gfx.Extent3D{
+                .width = width,
+                .height = height,
+                .depth = 1,
+            },
+            .array_layers = 1,
+            .mip_levels = 1,
+            .samples = gfx.SampleCountFlags{ .@"1_bit" = true },
+            .tiling = gfx.ImageTiling.optimal,
+            .initial_layout = gfx.ImageLayout.undefined,
+            .usage = gfx.ImageUsageFlags{ .depth_stencil_attachment_bit = true },
+            .sharing_mode = gfx.SharingMode.exclusive,
+            .p_queue_family_indices = null,
+            .queue_family_index_count = 0,
+        }, &.{
+            .usage = gfx.vma.VMA_MEMORY_USAGE_GPU_ONLY,
+        });
+
+        writeToImage = try gfx.createImage(gfx.vkAllocator, &.{
+            .image_type = gfx.ImageType.@"2d",
+            .format = gfx.Format.r32g32_uint,
+            .extent = gfx.Extent3D{
+                .width = width,
+                .height = height,
+                .depth = 1,
+            },
+            .array_layers = 1,
+            .mip_levels = 1,
+            .samples = gfx.SampleCountFlags{ .@"1_bit" = true },
+            .tiling = gfx.ImageTiling.optimal,
+            .initial_layout = gfx.ImageLayout.undefined,
+            .usage = gfx.ImageUsageFlags{
+                .color_attachment_bit = true,
+                .transfer_src_bit = true,
+            },
+            .sharing_mode = gfx.SharingMode.exclusive,
+            .p_queue_family_indices = null,
+            .queue_family_index_count = 0,
+        }, &.{
+            .usage = gfx.vma.VMA_MEMORY_USAGE_GPU_ONLY,
+        });
+
+        depthImageView = try gfx.device.createImageView(&.{
+            .image = depthImage.image,
+            .view_type = gfx.ImageViewType.@"2d",
+            .format = gfx.Format.d16_unorm,
+            .components = gfx.ComponentMapping{
+                .a = gfx.ComponentSwizzle.a,
+                .r = gfx.ComponentSwizzle.r,
+                .g = gfx.ComponentSwizzle.g,
+                .b = gfx.ComponentSwizzle.b,
+            },
+            .subresource_range = gfx.ImageSubresourceRange{
+                .aspect_mask = gfx.ImageAspectFlags{ .depth_bit = true },
+                .base_array_layer = 0,
+                .layer_count = 1,
+                .base_mip_level = 0,
+                .level_count = 1,
+            },
+        }, null);
+
+        writeToImageView = try gfx.device.createImageView(&.{
+            .image = writeToImage.image,
+            .view_type = gfx.ImageViewType.@"2d",
+            .format = gfx.Format.r32g32_uint,
+            .components = gfx.ComponentMapping{
+                .a = gfx.ComponentSwizzle.a,
+                .r = gfx.ComponentSwizzle.r,
+                .g = gfx.ComponentSwizzle.g,
+                .b = gfx.ComponentSwizzle.b,
+            },
+            .subresource_range = gfx.ImageSubresourceRange{
+                .aspect_mask = gfx.ImageAspectFlags{ .color_bit = true },
+                .base_array_layer = 0,
+                .layer_count = 1,
+                .base_mip_level = 0,
+                .level_count = 1,
+            },
+        }, null);
+
+        framebuffer = try gfx.device.createFramebuffer(&gfx.FramebufferCreateInfo{
+            .render_pass = renderPass,
+            .p_attachments = &.{
+                writeToImageView,
+                depthImageView,
+            },
+            .attachment_count = 2,
+            .width = width,
+            .height = height,
+            .layers = 1,
+        }, null);
+    }
+
+    fn destroyReadBackData() void {
+        gfx.device.destroyFramebuffer(framebuffer, null);
+
+        gfx.device.destroyImageView(depthImageView, null);
+        gfx.device.destroyImageView(writeToImageView, null);
+
+        gfx.destroyImage(gfx.vkAllocator, depthImage);
+        gfx.destroyImage(gfx.vkAllocator, writeToImage);
+        gfx.destroyBuffer(gfx.vkAllocator, readBackBuffer);
     }
 
     fn createPipelineLayout() !gfx.PipelineLayout {

@@ -1,5 +1,6 @@
 const flecs = @import("zflecs");
 const stbi = @import("zstbi");
+const tracy = @import("ztracy");
 
 const core = @import("CoreModule");
 
@@ -41,6 +42,9 @@ pub const Texture = struct {
     }
 
     pub fn init(image: *const core.io.Image) !Texture {
+        const tracy_zone = tracy.ZoneNC(@src(), "Init texture", 0x00_ff_ff_00);
+        defer tracy_zone.End();
+
         var self = Self{
             .baseImage = image,
         };
@@ -187,6 +191,9 @@ pub const Texture = struct {
     }
 
     pub fn deinit(self: *Texture) void {
+        const tracy_zone = tracy.ZoneNC(@src(), "Deinit texture", 0x00_ff_ff_00);
+        defer tracy_zone.End();
+
         gfx.device.destroySampler(self.sampler, null);
         gfx.device.destroyImageView(self.imageView, null);
         gfx.destroyImage(gfx.vkAllocator, self.image);

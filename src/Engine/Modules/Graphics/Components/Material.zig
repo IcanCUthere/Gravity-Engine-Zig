@@ -2,6 +2,7 @@ const util = @import("util");
 
 const flecs = @import("zflecs");
 const stbi = @import("zstbi");
+const tracy = @import("ztracy");
 
 const core = @import("CoreModule");
 
@@ -52,6 +53,9 @@ pub const Material = struct {
     }
 
     pub fn init(vertexShader: []const u8, fragmentShader: []const u8) !Self {
+        const tracy_zone = tracy.ZoneNC(@src(), "Init material", 0x00_ff_ff_00);
+        defer tracy_zone.End();
+
         var self: Self = undefined;
 
         self.vertexModule = try gfx.device.createShaderModule(&gfx.ShaderModuleCreateInfo{
@@ -190,6 +194,9 @@ pub const Material = struct {
     }
 
     pub fn deinit(self: *Self) void {
+        const tracy_zone = tracy.ZoneNC(@src(), "Deinit material", 0x00_ff_ff_00);
+        defer tracy_zone.End();
+
         gfx.device.destroyPipeline(self.pipeline, null);
         gfx.device.destroyPipelineLayout(self.pipelineLayout, null);
 

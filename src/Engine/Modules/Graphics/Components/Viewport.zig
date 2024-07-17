@@ -2,6 +2,7 @@ const util = @import("util");
 const mem = util.mem;
 
 const flecs = @import("zflecs");
+const tracy = @import("ztracy");
 
 const gfx = @import("Internal/interface.zig");
 const evnt = @import("Internal/event.zig");
@@ -126,6 +127,9 @@ pub const Viewport = struct {
     }
 
     pub fn init(title: [:0]const u8, width: u32, height: u32, imageCount: u32, layerCount: u32, callbackFn: evnt.CallbackFunction) !Viewport {
+        const tracy_zone = tracy.ZoneNC(@src(), "Init Viewport", 0x00_ff_ff_00);
+        defer tracy_zone.End();
+
         gfx.glfw.windowHint(gfx.glfw.WindowHint.client_api, @intFromEnum(gfx.glfw.ClientApi.no_api));
         //glfw.windowHint(glfw.WindowHint.decorated, 0);
         var window = try gfx.glfw.Window.create(@intCast(width), @intCast(height), title, null);
@@ -231,6 +235,9 @@ pub const Viewport = struct {
     }
 
     pub fn deinit(self: *Self) void {
+        const tracy_zone = tracy.ZoneNC(@src(), "Deinit viewport", 0x00_ff_ff_00);
+        defer tracy_zone.End();
+
         for (self._swapchainData) |*data| {
             data.deinit();
         }
@@ -247,6 +254,9 @@ pub const Viewport = struct {
     }
 
     pub fn nextFrame(self: *Self, semaphore: gfx.Semaphore) !void {
+        const tracy_zone = tracy.ZoneNC(@src(), "Acquire next frame", 0x00_ff_ff_00);
+        defer tracy_zone.End();
+
         if (self._resized) {
             const nextIndex: u32 = (self._currentSwapchain + 1) % self._imageCount;
             const lastIndex: u32 = (self._currentSwapchain + self._imageCount - 1) % self._imageCount;
@@ -264,6 +274,9 @@ pub const Viewport = struct {
     }
 
     pub fn presentImage(self: *Self, semaphores: *gfx.Semaphore, count: u32) !void {
+        const tracy_zone = tracy.ZoneNC(@src(), "Present image", 0x00_ff_ff_00);
+        defer tracy_zone.End();
+
         _ = try gfx.device.queuePresentKHR(self._presentQueue, &.{
             .p_swapchains = &.{self._swapchainData[self._currentSwapchain].swapchain},
             .p_image_indices = &.{self._swapchainData[self._currentSwapchain].presentIndex},

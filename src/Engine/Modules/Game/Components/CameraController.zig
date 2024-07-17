@@ -2,6 +2,7 @@ const util = @import("util");
 const math = util.math;
 
 const flecs = @import("zflecs");
+const tracy = @import("ztracy");
 
 const core = @import("CoreModule");
 const graphics = @import("GraphicsModule");
@@ -101,6 +102,9 @@ pub const CameraController = struct {
     }
 
     pub fn onUpdate(it: *flecs.iter_t, cameras: []core.Transform, controllers: []const Self) void {
+        const tracy_zone = tracy.ZoneNC(@src(), "Update camera controller", 0x00_ff_ff_00);
+        defer tracy_zone.End();
+
         for (cameras, controllers) |*camera, controller| {
             const deltaSplat: math.Vec = @splat(it.delta_time);
             const negativeOne: math.Vec = @splat(-1.0);

@@ -3,6 +3,7 @@ const mem = util.mem;
 const math = util.math;
 
 const flecs = @import("zflecs");
+const tracy = @import("ztracy");
 
 const core = @import("CoreModule");
 
@@ -31,6 +32,9 @@ pub const Camera = struct {
     }
 
     pub fn init(FOWinDeg: f32, aspectRatio: f32, near: f32, far: f32) !Self {
+        const tracy_zone = tracy.ZoneNC(@src(), "Init camera", 0x00_ff_ff_00);
+        defer tracy_zone.End();
+
         var self: Self = undefined;
         self.setProjectionMatrix(FOWinDeg, aspectRatio, near, far);
 
@@ -67,10 +71,16 @@ pub const Camera = struct {
     }
 
     pub fn deinit(self: *Self) void {
+        const tracy_zone = tracy.ZoneNC(@src(), "Deinit camera", 0x00_ff_ff_00);
+        defer tracy_zone.End();
+
         gfx.destroyBuffer(gfx.vkAllocator, self.cameraMatricesUniform);
     }
 
     pub fn onUpdate(_: *flecs.iter_t, cameras: []Camera, transforms: []core.Transform) !void {
+        const tracy_zone = tracy.ZoneNC(@src(), "Update cameras", 0x00_ff_ff_00);
+        defer tracy_zone.End();
+
         for (cameras, transforms) |c, t| {
             const transformMatrix = util.math.mulV(t.translationMatrix, t.rotationMatrix);
             const data = mem.toBytes(transformMatrix) ++ mem.toBytes(c.projectionMatrix) ++ mem.toBytes(t.localPosition);

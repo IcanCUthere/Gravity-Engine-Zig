@@ -2,6 +2,7 @@ const util = @import("util");
 const mem = util.mem;
 
 const flecs = @import("zflecs");
+const tracy = @import("ztracy");
 
 const core = @import("CoreModule");
 
@@ -80,6 +81,9 @@ pub const Model = struct {
     }
 
     pub fn init(mesh: *const core.io.Mesh, material: *const Material, texture: *const Texture) !Self {
+        const tracy_zone = tracy.ZoneNC(@src(), "Init model", 0x00_ff_ff_00);
+        defer tracy_zone.End();
+
         var self = Self{
             .mesh = mesh,
         };
@@ -182,6 +186,9 @@ pub const Model = struct {
     }
 
     pub fn deinit(self: *Self) void {
+        const tracy_zone = tracy.ZoneNC(@src(), "Deinit model", 0x00_ff_ff_00);
+        defer tracy_zone.End();
+
         gfx.destroyBuffer(gfx.vkAllocator, self.vertexBuffer);
         gfx.destroyBuffer(gfx.vkAllocator, self.indexBuffer);
     }

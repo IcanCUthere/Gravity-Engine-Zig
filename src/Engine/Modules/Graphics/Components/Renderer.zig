@@ -28,6 +28,7 @@ pub const Renderer = struct {
     var _semaphores: []gfx.Semaphore = undefined;
     pub var _timelineSemaphore: gfx.Semaphore = undefined;
     pub var _semaphoreValue: u64 = 0;
+    var waitValues: []u64 = undefined;
     pub var imageIndex: u32 = 0;
 
     var _stagingBuffers: [BufferedImages]gfx.BufferAllocation = .{undefined} ** BufferedImages;
@@ -91,8 +92,25 @@ pub const Renderer = struct {
         transferCmdLists = try util.mem.heap.alloc(gfx.CommandBuffer, BufferedImages);
 
         _semaphores = try util.mem.heap.alloc(gfx.Semaphore, BufferedImages);
+        waitValues = try util.mem.heap.alloc(u64, BufferedImages);
 
-        for (renderCmdPools, renderCmdLists, transferCmdPools, transferCmdLists, _semaphores) |*rpool, *rlist, *tpool, *tlist, *sem| {
+        for (
+            renderCmdPools,
+            renderCmdLists,
+            transferCmdPools,
+            transferCmdLists,
+            _semaphores,
+            waitValues,
+        ) |
+            *rpool,
+            *rlist,
+            *tpool,
+            *tlist,
+            *sem,
+            *wv,
+        | {
+            wv.* = 0;
+
             rpool.* = try gfx.device.createCommandPool(&.{
                 .queue_family_index = gfx.renderFamily,
             }, null);
@@ -186,6 +204,7 @@ pub const Renderer = struct {
             gfx.device.destroyCommandPool(tpool, null);
         }
 
+        util.mem.heap.free(waitValues);
         util.mem.heap.free(_semaphores);
         util.mem.heap.free(renderCmdLists);
         util.mem.heap.free(renderCmdPools);
@@ -413,11 +432,14 @@ pub const Renderer = struct {
     }
 
     pub fn updateData(_: *flecs.iter_t) !void {
+        const tracy_zone = tracy.ZoneNC(@src(), "Upload data", 0x00_ff_ff_00);
+        defer tracy_zone.End();
+
         var waitValue: u64 = _semaphoreValue;
 
         _ = try gfx.device.waitSemaphores(&gfx.SemaphoreWaitInfo{
             .p_semaphores = @ptrCast(&_timelineSemaphore),
-            .p_values = &[_]u64{waitValue},
+            .p_values = &[_]u64{waitValues[imageIndex]},
             .semaphore_count = 1,
         }, ~@as(u64, 0));
 
@@ -459,6 +481,9 @@ pub const Renderer = struct {
     }
 
     pub fn beginFrame(_: *flecs.iter_t, viewport: []Viewport) !void {
+        const tracy_zone = tracy.ZoneNC(@src(), "Begin frame", 0x00_ff_ff_00);
+        defer tracy_zone.End();
+
         try viewport[0].nextFrame(_semaphores[imageIndex]);
 
         try gfx.device.resetCommandPool(renderCmdPools[imageIndex], .{});
@@ -475,6 +500,9 @@ pub const Renderer = struct {
     }
 
     pub fn startRendering(_: *flecs.iter_t, viewport: []const Viewport) void {
+        const tracy_zone = tracy.ZoneNC(@src(), "Start rendering", 0x00_ff_ff_00);
+        defer tracy_zone.End();
+
         const clearValues = [_]gfx.ClearValue{
             gfx.ClearValue{ .color = .{ .float_32 = [4]f32{ 0.0, 0.0, 0.0, 0.0 } } },
             gfx.ClearValue{ .depth_stencil = .{ .depth = 1.0, .stencil = 0 } },
@@ -538,15 +566,23 @@ pub const Renderer = struct {
     }
 
     pub fn stopRendering(_: *flecs.iter_t) void {
+        const tracy_zone = tracy.ZoneNC(@src(), "Stop rendering", 0x00_ff_ff_00);
+        defer tracy_zone.End();
+
         gfx.device.cmdEndRenderPass(renderCmdLists[imageIndex]);
     }
 
     pub fn endFrame(_: *flecs.iter_t, viewport: []Viewport) !void {
+        const tracy_zone = tracy.ZoneNC(@src(), "End frame", 0x00_ff_ff_00);
+        defer tracy_zone.End();
+
         try gfx.device.endCommandBuffer(renderCmdLists[imageIndex]);
 
         const signalValue = _semaphoreValue + 1;
         const waitValue = _semaphoreValue;
         _semaphoreValue += 1;
+
+        waitValues[imageIndex] = signalValue;
 
         try gfx.device.queueSubmit(gfx.renderQueue, 1, &[_]gfx.SubmitInfo{
             gfx.SubmitInfo{
