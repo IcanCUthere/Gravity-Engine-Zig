@@ -78,7 +78,7 @@ fn findCppFilesInPath(comptime subPath: []const u8, ext: []const u8) ![][]const 
     return try res.toOwnedSlice();
 }
 
-const out_dir = "libs/cache/";
+const out_dir = "libs/build_out/";
 const header_dir = "libs/SPIRV-Headers/include/";
 
 fn coreTable(b: *std.Build) void {
