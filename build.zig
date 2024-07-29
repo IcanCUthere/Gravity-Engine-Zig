@@ -54,6 +54,7 @@ pub fn build(b: *std.Build) void {
         .backend = .glfw_vulkan,
     });
     const zshaderc = b.dependency("zshaderc", .{});
+    b.getInstallStep().dependOn(zshaderc.builder.getInstallStep());
 
     const utils = b.createModule(std.Build.Module.CreateOptions{
         .root_source_file = b.path("src/Utility/utils.zig"),

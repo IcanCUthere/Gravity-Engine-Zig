@@ -78,7 +78,7 @@ fn findCppFilesInPath(comptime subPath: []const u8, ext: []const u8) ![][]const 
     return try res.toOwnedSlice();
 }
 
-const out_dir = "libs/py-out/";
+const out_dir = "libs/cache/";
 const header_dir = "libs/SPIRV-Headers/include/";
 
 fn coreTable(b: *std.Build) void {
@@ -186,6 +186,18 @@ pub fn build(b: *std.Build) !void {
     vendorTable(b, "nonsemantic.vkspreflection", "");
     buildVersion(b);
     generators(b);
+
+    var outDir = try std.fs.openDirAbsolute(b.path(out_dir).getPath(b), .{});
+    defer outDir.close();
+
+    outDir.makeDir("glslang") catch {};
+    var file = try outDir.createFile("glslang\\build_info.h", .{});
+    defer file.close();
+
+    _ = try file.write("#define GLSLANG_VERSION_MAJOR 0\n");
+    _ = try file.write("#define GLSLANG_VERSION_MINOR 0\n");
+    _ = try file.write("#define GLSLANG_VERSION_PATCH 0\n");
+    _ = try file.write("#define GLSLANG_VERSION_FLAVOR \"0\"\n");
 
     const zshaderc = b.addModule("root", .{
         .root_source_file = b.path("src/main.zig"),
