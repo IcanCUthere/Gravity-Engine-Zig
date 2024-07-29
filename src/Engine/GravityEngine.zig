@@ -7,7 +7,7 @@ const tracy = @import("ztracy");
 
 const builtin = @import("builtin");
 
-const Modules = @import("modules");
+const Modules = @import("Modules/modules.zig");
 
 pub const GravityEngine = struct {
     const Self = @This();

@@ -1,16 +1,4 @@
 const std = @import("std");
-const vkgen = @import("vulkan_zig");
-
-var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-const allocator = gpa.allocator();
-
-fn concatStrings(allo: std.mem.Allocator, one: []const u8, two: []const u8, three: []const u8) []const u8 {
-    const buf = allo.alloc(u8, one.len + two.len + three.len) catch return ([0]u8{})[0..];
-    std.mem.copyForwards(u8, buf, one);
-    std.mem.copyForwards(u8, buf[one.len..], two);
-    std.mem.copyForwards(u8, buf[(one.len + two.len)..], three);
-    return buf;
-}
 
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
@@ -107,21 +95,7 @@ pub fn build(b: *std.Build) void {
     gameModule.addImport("GraphicsModule", graphicsModule);
     gameModule.addImport("util", utils);
 
-    const modulesModule = b.createModule(std.Build.Module.CreateOptions{
-        .root_source_file = b.path("src/Engine/Modules/modules.zig"),
-    });
-    modulesModule.addImport("CoreModule", coreModule);
-    modulesModule.addImport("GraphicsModule", graphicsModule);
-    modulesModule.addImport("EditorModule", editorModule);
-    modulesModule.addImport("GameModule", gameModule);
-
     for ([_]*std.Build.Step.Compile{ exe, tests }) |cmp| {
-        cmp.root_module.addImport("zphysics", zphysics.module("root"));
-        cmp.root_module.addImport("ztracy", ztracy.module("root"));
-        cmp.root_module.addImport("util", utils);
-        cmp.root_module.addImport("modules", modulesModule);
-        cmp.root_module.addImport("zflecs", zflecs.module("root"));
-
         @import("system_sdk").addLibraryPathsTo(cmp);
         cmp.linkLibrary(ztracy.artifact("tracy"));
         cmp.linkLibrary(zglfw.artifact("glfw"));
@@ -134,12 +108,17 @@ pub fn build(b: *std.Build) void {
         //Not needed, but helps zls
         cmp.root_module.addImport("vulkan", vkzig.module("vulkan-zig"));
         cmp.root_module.addIncludePath(b.path("libs/vulkan/"));
+
         cmp.root_module.addImport("zglfw", zglfw.module("root"));
         cmp.root_module.addImport("zstbi", zstbi.module("root"));
         cmp.root_module.addImport("zmath", zmath.module("root"));
         cmp.root_module.addImport("zmesh", zmesh.module("root"));
         cmp.root_module.addImport("zgui", zgui.module("root"));
+        cmp.root_module.addImport("zphysics", zphysics.module("root"));
+        cmp.root_module.addImport("ztracy", ztracy.module("root"));
+        cmp.root_module.addImport("zflecs", zflecs.module("root"));
         cmp.root_module.addImport("zshaderc", zshaderc.module("root"));
+
         cmp.root_module.addImport("util", utils);
         cmp.root_module.addImport("CoreModule", coreModule);
         cmp.root_module.addImport("GraphicsModule", graphicsModule);
