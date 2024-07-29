@@ -9,8 +9,6 @@ const graphics = @import("GraphicsModule");
 
 const CameraController = @import("Components/CameraController.zig").CameraController;
 
-const shaders = @import("shaders");
-
 pub const Game = struct {
     pub const name: []const u8 = "game";
     pub const dependencies = [_][]const u8{ "core", "graphics" };
@@ -40,16 +38,10 @@ pub const Game = struct {
 
         _ = flecs.set(scene, graphics.Graphics.mainCamera, CameraController, .{});
 
-        const material = try graphics.Material.new(
-            "BaseMaterial",
-            &shaders.shader_vert,
-            &shaders.shader_frag,
-        );
-
         const prefab = try graphics.Model.new(
             "Helmet",
-            "resources/DamagedHelmet.glb",
-            material,
+            "resources/models/DamagedHelmet.glb",
+            graphics.Graphics.baseMaterial,
         );
 
         const max = 5;

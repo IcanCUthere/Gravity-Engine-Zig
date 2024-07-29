@@ -7,6 +7,7 @@ const glfw = @import("zglfw");
 
 const core = @import("CoreModule");
 
+pub const shaders = @import("Components/Internal/shaderStorage.zig");
 pub const gfx = @import("Components/Internal/interface.zig");
 pub const evnt = @import("Components/Internal/event.zig");
 pub const InputState = @import("Components/Internal/inputState.zig").InputState;
@@ -33,12 +34,15 @@ pub const Graphics = struct {
         ModelInstance,
     };
 
+    pub var baseMaterial: flecs.entity_t = undefined;
+
     pub fn init(scene: *flecs.world_t) !void {
         const tracy_zone = tracy.ZoneNC(@src(), "Graphics Module Init", 0x00_ff_ff_00);
         defer tracy_zone.End();
 
         try glfw.init();
         try gfx.init();
+        try shaders.init();
 
         _scene = scene;
 
@@ -113,21 +117,26 @@ pub const Graphics = struct {
             flecs.ADD_SYSTEM(scene, "Update " ++ @typeName(comp), flecs.PreStore, comp.onUpdate);
         }
 
-        flecs.ADD_SYSTEM(scene, "Transfer Data", flecs.PreStore, Renderer.updateData);
         flecs.ADD_SYSTEM(scene, "Begin Frame", flecs.PreStore, Renderer.beginFrame);
-        flecs.ADD_SYSTEM(scene, "Start Rendering", flecs.PreStore, Renderer.startRendering);
+        flecs.ADD_SYSTEM(scene, "Transfer Data", flecs.PreStore, Renderer.updateData);
 
+        flecs.ADD_SYSTEM(scene, "Start Rendering", flecs.OnStore, Renderer.startRendering);
         flecs.SYSTEM(scene, "Render", flecs.OnStore, &desc);
+        flecs.ADD_SYSTEM(scene, "Stop Rendering", flecs.OnStore, Renderer.stopRendering);
 
-        flecs.ADD_SYSTEM(scene, "Stop Rendering", core.Pipeline.postStore, Renderer.stopRendering);
         flecs.ADD_SYSTEM(scene, "End Frame", core.Pipeline.postStore, Renderer.endFrame);
-
         flecs.ADD_SYSTEM(scene, "Clear Events", core.Pipeline.postStore, clearEvents);
 
         InputState.mouseX = viewport.getMousePosition()[0];
         InputState.mouseY = viewport.getMousePosition()[1];
         InputState.viewportX = viewport.getWidth();
         InputState.viewportY = viewport.getHeight();
+
+        baseMaterial = try Material.new(
+            "BaseMaterial",
+            shaders.get("default.vert"),
+            shaders.get("default.frag"),
+        );
     }
 
     pub fn preDeinit() !void {
@@ -142,6 +151,7 @@ pub const Graphics = struct {
             try util.module.cleanUpComponent(comp, _scene);
         }
 
+        shaders.deinit();
         gfx.deinit();
         glfw.terminate();
     }

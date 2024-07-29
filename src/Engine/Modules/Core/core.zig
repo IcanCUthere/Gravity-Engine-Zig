@@ -39,7 +39,7 @@ pub const Core = struct {
 
         msh.init(util.mem.heap);
         stbi.init(util.mem.heap);
-        storage.init();
+        try storage.init();
 
         Pipeline.postStore = flecs.new_id(_scene);
         flecs.add_pair(_scene, Pipeline.postStore, flecs.DependsOn, flecs.OnStore);

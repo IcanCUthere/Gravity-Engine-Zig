@@ -5,24 +5,25 @@ const tracy = @import("ztracy");
 const gui = @import("zgui");
 
 const graphics = @import("GraphicsModule");
+const core = @import("CoreModule");
 
 const gfx = graphics.gfx;
-const StateManager = @import("Components/StateManager.zig").StateManager;
-
-const shaders = @import("shaders");
 
 pub const Editor = struct {
     pub const name: []const u8 = "editor";
     pub const dependencies = [_][]const u8{ "core", "graphics" };
+
+    var inEditor: bool = false;
+    var selectedEntity: u64 = 0;
+    var entityWindowOpen: bool = false;
+
+    var val3: @Vector(3, f32) = .{ 0, 0, 0 };
 
     var _scene: *flecs.world_t = undefined;
 
     var guiDescriptorPool: gfx.DescriptorPool = undefined;
 
     var renderPass: gfx.RenderPass = undefined;
-
-    var cmdPool: gfx.CommandPool = undefined;
-    var cmdList: gfx.CommandBuffer = undefined;
 
     var readBackBuffer: gfx.BufferAllocation = undefined;
 
@@ -36,11 +37,9 @@ pub const Editor = struct {
     var fragmentModule: gfx.ShaderModule = undefined;
     var instanceTransformLayout: gfx.DescriptorSetLayout = undefined;
     var pipelineLayout: gfx.PipelineLayout = undefined;
-    var pipeline: gfx.Pipeline = undefined;
+    var idPipeline: gfx.Pipeline = undefined;
 
-    const components = [_]type{
-        StateManager,
-    };
+    const components = [_]type{};
 
     pub fn init(scene: *flecs.world_t) !void {
         const tracy_zone = tracy.ZoneNC(@src(), "Editor Module Init", 0x00_ff_ff_00);
@@ -63,36 +62,43 @@ pub const Editor = struct {
             .max_sets = 1,
         }, null);
 
+        const vertexCode = graphics.shaders.get("id.vert");
         vertexModule = try gfx.device.createShaderModule(&gfx.ShaderModuleCreateInfo{
-            .code_size = shaders.editor_vert.len,
-            .p_code = @ptrCast(@alignCast(&shaders.editor_vert)),
+            .code_size = vertexCode.len,
+            .p_code = @ptrCast(@alignCast(vertexCode.ptr)),
         }, null);
 
+        const fragmentCode = graphics.shaders.get("id.frag");
         fragmentModule = try gfx.device.createShaderModule(&gfx.ShaderModuleCreateInfo{
-            .code_size = shaders.editor_frag.len,
-            .p_code = @ptrCast(@alignCast(&shaders.editor_frag)),
+            .code_size = fragmentCode.len,
+            .p_code = @ptrCast(@alignCast(fragmentCode.ptr)),
         }, null);
 
         renderPass = try createRenderPass();
         pipelineLayout = try createPipelineLayout();
-        pipeline = try gfx.createPipeline(
+        idPipeline = try gfx.createPipeline(
             pipelineLayout,
             renderPass,
             vertexModule,
             fragmentModule,
-            1000,
-            1000,
+            &[_]gfx.VertexInputBindingDescription{
+                gfx.VertexInputBindingDescription{
+                    .binding = 0,
+                    .stride = 32,
+                    .input_rate = gfx.VertexInputRate.vertex,
+                },
+            },
+            &[_]gfx.VertexInputAttributeDescription{
+                gfx.VertexInputAttributeDescription{
+                    .binding = 0,
+                    .location = 0,
+                    .offset = 0,
+                    .format = gfx.Format.r32g32b32_sfloat,
+                },
+            },
+            true,
+            null,
         );
-
-        cmdPool = try gfx.device.createCommandPool(&.{
-            .queue_family_index = gfx.renderFamily,
-        }, null);
-
-        try gfx.device.allocateCommandBuffers(&.{
-            .command_pool = cmdPool,
-            .level = gfx.CommandBufferLevel.primary,
-            .command_buffer_count = 1,
-        }, @ptrCast(&cmdList));
 
         try createReadBackData(graphics.InputState.viewportX, graphics.InputState.viewportY);
 
@@ -119,32 +125,42 @@ pub const Editor = struct {
             .imageCount = 3,
         });
 
+        const rubikFont = gui.io.addFontFromFile("resources/Rubik/static/Rubik-Light.ttf", 36);
+        gui.io.setDefaultFont(rubikFont);
+
+        const style = gui.getStyle();
+        gui.Style.scaleAllSizes(style, 2);
+
         inline for (components) |comp| {
             comp.register(scene);
         }
 
-        var desc = flecs.system_desc_t{};
-        desc.callback = flecs.SystemImpl(render).exec;
-        desc.query.filter.terms[0] = flecs.term_t{
-            .id = flecs.id(graphics.ModelInstance),
-            .inout = .In,
-        };
-        desc.query.filter.terms[1] = flecs.term_t{
-            .id = flecs.id(graphics.Model),
-            .inout = .In,
-        };
-        desc.query.filter.terms[2] = flecs.term_t{
-            .id = flecs.id(graphics.Viewport),
-            .inout = .In,
-            .src = flecs.term_id_t{
-                .id = graphics.Graphics.mainViewport,
-            },
-        };
-        desc.query.filter.instanced = true;
+        flecs.ADD_SYSTEM(_scene, "Editor onEvent", flecs.PostLoad, onEvent);
 
-        flecs.SYSTEM(scene, "Render IDs", flecs.PreStore, &desc);
+        flecs.ADD_SYSTEM(_scene, "Update selected ID", flecs.PreUpdate, updateSelectedID);
 
+        flecs.ADD_SYSTEM(_scene, "Start Render IDs", flecs.OnStore, startRenderIDs);
+        flecs.ADD_SYSTEM(scene, "Render IDs", flecs.OnStore, renderIDs);
+        flecs.ADD_SYSTEM(_scene, "Stop render IDs", flecs.OnStore, stopRenderIDs);
         flecs.ADD_SYSTEM(_scene, "Gui new frame", flecs.OnStore, guiNextFrame);
+
+        //const gizmoMat = try graphics.Material.new(
+        //    "GizmoMat",
+        //    graphics.shaders.get("gizmo.vert"),
+        //    graphics.shaders.get("gizmo.frag"),
+        //);
+
+        //const gizmo = try graphics.Model.new(
+        //    "Gizmo",
+        //    "resources/models/Gizmo.glb",
+        //    gizmoMat,
+        //);
+
+        //_ = try graphics.ModelInstance.new(
+        //    "GizmoInstance",
+        //    gizmo,
+        //    util.math.videntity(),
+        //);
     }
 
     pub fn preDeinit() !void {}
@@ -163,19 +179,43 @@ pub const Editor = struct {
         gfx.device.destroyDescriptorPool(guiDescriptorPool, null);
 
         gfx.device.destroyRenderPass(renderPass, null);
-        gfx.device.destroyCommandPool(cmdPool, null);
 
         destroyReadBackData();
 
-        gfx.device.destroyPipeline(pipeline, null);
+        gfx.device.destroyPipeline(idPipeline, null);
         gfx.device.destroyPipelineLayout(pipelineLayout, null);
         gfx.device.destroyDescriptorSetLayout(instanceTransformLayout, null);
         gfx.device.destroyShaderModule(vertexModule, null);
         gfx.device.destroyShaderModule(fragmentModule, null);
     }
 
+    pub fn onEvent(it: *flecs.iter_t) void {
+        const input = graphics.InputState;
+
+        const viewport = flecs.get(it.world, graphics.Graphics.mainViewport, graphics.Viewport).?;
+
+        if (input.getKeyState(.F1).isPress and !inEditor) {
+            inEditor = true;
+            viewport.setCursorEnabled(true);
+        } else if (input.getKeyState(.F1).isPress and inEditor) {
+            inEditor = false;
+            viewport.setCursorEnabled(false);
+        }
+
+        if (inEditor) {
+            input.deltaMouseX = 0;
+            input.deltaMouseY = 0;
+        }
+
+        input.clearKey(.F1);
+    }
+
     fn loader(n: [*:0]const u8, handle: *const anyopaque) ?*const anyopaque {
         return @ptrCast(gfx.baseDispatch.dispatch.vkGetInstanceProcAddr(@enumFromInt(@intFromPtr(handle)), n).?);
+    }
+
+    fn entitySelected() bool {
+        return selectedEntity != 0;
     }
 
     fn guiNextFrame(_: *flecs.iter_t, viewport: []graphics.Viewport) !void {
@@ -184,8 +224,124 @@ pub const Editor = struct {
 
         gui.backend.newFrame(viewport[0].getWidth(), viewport[0].getHeight());
 
-        var open: bool = true;
-        gui.showDemoWindow(&open);
+        gui.setNextWindowSize(.{
+            .h = 1000,
+            .w = 600,
+            .cond = .once,
+        });
+
+        if (entitySelected()) {
+            //const entityName: [*:0]const u8 = flecs.get_name(_scene, selectedEntity).?;
+            var transform: core.Transform = flecs.get(_scene, selectedEntity, core.Transform).?.*;
+
+            _ = gui.begin(
+                "Selection",
+                .{
+                    .flags = .{
+                        .no_saved_settings = true,
+                        .no_collapse = true,
+                    },
+                    .popen = &entityWindowOpen,
+                },
+            );
+
+            //gui.showDemoWindow(null);
+
+            if (gui.collapsingHeader("Transform", .{})) {
+                if (gui.beginTable("LocalTransform", .{
+                    .column = 4,
+                    .flags = gui.TableFlags{
+                        .borders = gui.TableBorderFlags{
+                            .inner_h = true,
+                            .outer_h = true,
+                            .inner_v = true,
+                            .outer_v = true,
+                        },
+                    },
+                })) {
+                    gui.tableSetupColumn("Local", .{
+                        .flags = gui.TableColumnFlags{
+                            .width_fixed = true,
+                        },
+                    });
+                    gui.tableSetupColumn("x", .{
+                        .flags = gui.TableColumnFlags{
+                            .width_stretch = true,
+                        },
+                    });
+                    gui.tableSetupColumn("y", .{
+                        .flags = gui.TableColumnFlags{
+                            .width_stretch = true,
+                        },
+                    });
+                    gui.tableSetupColumn("z", .{
+                        .flags = gui.TableColumnFlags{
+                            .width_stretch = true,
+                        },
+                    });
+                    gui.tableHeadersRow();
+
+                    gui.tableNextRow(.{});
+                    _ = gui.tableSetColumnIndex(0);
+                    gui.pushItemWidth(-gui.f32_min);
+                    _ = gui.tableSetColumnIndex(1);
+                    gui.pushItemWidth(-gui.f32_min);
+                    _ = gui.tableSetColumnIndex(2);
+                    gui.pushItemWidth(-gui.f32_min);
+                    _ = gui.tableSetColumnIndex(3);
+                    gui.pushItemWidth(-gui.f32_min);
+
+                    gui.tableNextRow(.{});
+
+                    //gui.pushIntId(0);
+                    _ = gui.tableSetColumnIndex(0);
+                    gui.text("Position", .{});
+                    _ = gui.tableSetColumnIndex(1);
+                    _ = gui.dragFloat("##x", .{
+                        .v = &transform.localPosition[0],
+                        .speed = 10000,
+                        .cfmt = "%.3f",
+                        .max = 100000000.0,
+                        .min = -100000000.0,
+                        .flags = .{
+                            .logarithmic = true,
+                            .no_round_to_format = true,
+                        },
+                    });
+                    _ = gui.tableSetColumnIndex(2);
+                    _ = gui.dragFloat("##y", .{
+                        .v = &transform.localPosition[1],
+                        .speed = 10000,
+                        .cfmt = "%.3f",
+                        .max = 100000000.0,
+                        .min = -100000000.0,
+                        .flags = .{
+                            .logarithmic = true,
+                            .no_round_to_format = true,
+                        },
+                    });
+                    _ = gui.tableSetColumnIndex(3);
+                    _ = gui.dragFloat("##z", .{
+                        .v = &transform.localPosition[2],
+                        .speed = 10000,
+                        .cfmt = "%.3f",
+                        .max = 100000000.0,
+                        .min = -100000000.0,
+                        .flags = .{
+                            .logarithmic = true,
+                            .no_round_to_format = true,
+                        },
+                    });
+                    //gui.popId();
+
+                    gui.endTable();
+                }
+            }
+
+            gui.end();
+
+            _ = flecs.set(_scene, selectedEntity, core.Transform, transform);
+        }
 
         gui.backend.draw(@ptrFromInt(@intFromEnum(graphics.Renderer.getCurrentCmdList())));
 
@@ -193,37 +349,45 @@ pub const Editor = struct {
         gui.RenderPlatformWindowsDefault();
     }
 
-    pub fn render(
-        it: *flecs.iter_t,
-        modelInstances: []const graphics.ModelInstance,
-        model: []const graphics.Model,
-        viewport: []const graphics.Viewport,
-    ) !void {
-        const tracy_zone = tracy.ZoneNC(@src(), "Render IDs", 0x00_ff_ff_00);
-        defer tracy_zone.End();
+    pub fn updateSelectedID(_: *flecs.iter_t) !void {
+        const data = try gfx.startReadMemory(
+            gfx.vkAllocator,
+            readBackBuffer,
+            graphics.InputState.viewportX * graphics.InputState.viewportY * 2 * @sizeOf(u32),
+        );
+        defer gfx.stopReadMemory(gfx.vkAllocator, readBackBuffer);
 
+        if (inEditor and
+            graphics.InputState.getKeyState(.Mouseleft).isPress and
+            !gui.isWindowHovered(.{ .any_window = true }) and
+            graphics.InputState.mouseX - 1 >= 0 and
+            graphics.InputState.mouseY - 1 >= 0)
+        {
+            const mouseX: u32 = @intFromFloat(graphics.InputState.mouseX - 1);
+            const mouseY: u32 = @intFromFloat(graphics.InputState.mouseY - 1);
+
+            if (mouseX < graphics.InputState.viewportX and
+                mouseY < graphics.InputState.viewportY)
+            {
+                const pixelReadPos = mouseY * graphics.InputState.viewportX + mouseX;
+                const idData = @as([*]u64, @ptrCast(@alignCast(data.ptr)))[0 .. data.len / 4];
+
+                selectedEntity = idData[pixelReadPos];
+            }
+        }
+    }
+
+    pub fn startRenderIDs(_: *flecs.iter_t) !void {
         if (graphics.InputState.deltaViewportX != 0 or graphics.InputState.deltaViewportY != 0) {
             destroyReadBackData();
             try createReadBackData(graphics.InputState.viewportX, graphics.InputState.viewportY);
         }
 
-        try gfx.device.resetCommandPool(cmdPool, .{});
-
-        try gfx.device.beginCommandBuffer(cmdList, &gfx.CommandBufferBeginInfo{
-            .flags = gfx.CommandBufferUsageFlags{ .one_time_submit_bit = true },
-            .p_inheritance_info = &gfx.CommandBufferInheritanceInfo{
-                .render_pass = renderPass,
-                .framebuffer = framebuffer,
-                .subpass = 0,
-                .occlusion_query_enable = gfx.FALSE,
-            },
-        });
-
         const renderArea = gfx.Rect2D{
             .offset = gfx.Offset2D{ .x = 0, .y = 0 },
             .extent = gfx.Extent2D{
-                .width = viewport[0].getWidth(),
-                .height = viewport[0].getHeight(),
+                .width = graphics.InputState.viewportX,
+                .height = graphics.InputState.viewportY,
             },
         };
 
@@ -232,37 +396,54 @@ pub const Editor = struct {
             gfx.ClearValue{ .depth_stencil = .{ .depth = 1.0, .stencil = 0 } },
         };
 
-        gfx.device.cmdBeginRenderPass(cmdList, &gfx.RenderPassBeginInfo{
+        gfx.device.cmdBeginRenderPass(graphics.Renderer.getCurrentCmdList(), &gfx.RenderPassBeginInfo{
             .render_pass = renderPass,
             .framebuffer = framebuffer,
             .render_area = renderArea,
             .p_clear_values = @ptrCast(&clearValues),
             .clear_value_count = @intCast(clearValues.len),
         }, gfx.SubpassContents.@"inline");
+    }
 
-        gfx.device.cmdBindPipeline(cmdList, gfx.PipelineBindPoint.graphics, pipeline);
-        gfx.device.cmdSetViewport(cmdList, 0, 1, @ptrCast(&gfx.Viewport{
-            .width = @floatFromInt(viewport[0].getWidth()),
-            .height = -@as(f32, @floatFromInt(viewport[0].getHeight())),
+    pub fn renderIDs(
+        it: *flecs.iter_t,
+        modelInstances: []const graphics.ModelInstance,
+        model: []const graphics.Model,
+    ) !void {
+        const tracy_zone = tracy.ZoneNC(@src(), "Render IDs", 0x00_ff_ff_00);
+        defer tracy_zone.End();
+
+        const renderArea = gfx.Rect2D{
+            .offset = gfx.Offset2D{ .x = 0, .y = 0 },
+            .extent = gfx.Extent2D{
+                .width = graphics.InputState.viewportX,
+                .height = graphics.InputState.viewportY,
+            },
+        };
+
+        gfx.device.cmdBindPipeline(graphics.Renderer.getCurrentCmdList(), gfx.PipelineBindPoint.graphics, idPipeline);
+        gfx.device.cmdSetViewport(graphics.Renderer.getCurrentCmdList(), 0, 1, @ptrCast(&gfx.Viewport{
+            .width = @floatFromInt(graphics.InputState.viewportX),
+            .height = -@as(f32, @floatFromInt(graphics.InputState.viewportY)),
             .min_depth = 0.0,
             .max_depth = 1.0,
             .x = 0.0,
-            .y = @floatFromInt(viewport[0].getHeight()),
+            .y = @floatFromInt(graphics.InputState.viewportY),
         }));
-        gfx.device.cmdSetScissor(cmdList, 0, 1, @ptrCast(&renderArea));
+        gfx.device.cmdSetScissor(graphics.Renderer.getCurrentCmdList(), 0, 1, @ptrCast(&renderArea));
 
-        gfx.device.cmdBindVertexBuffers(cmdList, 0, 1, @ptrCast(&model[0].vertexBuffer.buffer), &[_]u64{0});
-        gfx.device.cmdBindIndexBuffer(cmdList, model[0].indexBuffer.buffer, 0, gfx.IndexType.uint32);
+        gfx.device.cmdBindVertexBuffers(graphics.Renderer.getCurrentCmdList(), 0, 1, @ptrCast(&model[0].vertexBuffer.buffer), &[_]u64{0});
+        gfx.device.cmdBindIndexBuffer(graphics.Renderer.getCurrentCmdList(), model[0].indexBuffer.buffer, 0, gfx.IndexType.uint32);
 
         const setsToBind = [_]gfx.DescriptorSet{
             graphics.Renderer.descriptorSet,
         };
 
-        gfx.device.cmdBindDescriptorSets(cmdList, gfx.PipelineBindPoint.graphics, pipelineLayout, 0, setsToBind.len, @ptrCast(&setsToBind), 0, null);
+        gfx.device.cmdBindDescriptorSets(graphics.Renderer.getCurrentCmdList(), gfx.PipelineBindPoint.graphics, pipelineLayout, 0, setsToBind.len, @ptrCast(&setsToBind), 0, null);
 
         for (modelInstances, it.entities()) |intance, e| {
             gfx.device.cmdPushConstants(
-                cmdList,
+                graphics.Renderer.getCurrentCmdList(),
                 pipelineLayout,
                 gfx.ShaderStageFlags{ .fragment_bit = true },
                 0,
@@ -271,7 +452,7 @@ pub const Editor = struct {
             );
 
             gfx.device.cmdBindDescriptorSets(
-                cmdList,
+                graphics.Renderer.getCurrentCmdList(),
                 gfx.PipelineBindPoint.graphics,
                 pipelineLayout,
                 1,
@@ -282,7 +463,7 @@ pub const Editor = struct {
             );
 
             gfx.device.cmdDrawIndexed(
-                cmdList,
+                graphics.Renderer.getCurrentCmdList(),
                 @intCast(model[0].mesh.indexData.len),
                 1,
                 0,
@@ -290,11 +471,13 @@ pub const Editor = struct {
                 0,
             );
         }
+    }
 
-        gfx.device.cmdEndRenderPass(cmdList);
+    fn stopRenderIDs(_: *flecs.iter_t) void {
+        gfx.device.cmdEndRenderPass(graphics.Renderer.getCurrentCmdList());
 
         gfx.device.cmdPipelineBarrier(
-            cmdList,
+            graphics.Renderer.getCurrentCmdList(),
             gfx.PipelineStageFlags{ .color_attachment_output_bit = true },
             gfx.PipelineStageFlags{ .transfer_bit = true },
             gfx.DependencyFlags{},
@@ -326,7 +509,7 @@ pub const Editor = struct {
         );
 
         gfx.device.cmdCopyImageToBuffer(
-            cmdList,
+            graphics.Renderer.getCurrentCmdList(),
             writeToImage.image,
             gfx.ImageLayout.transfer_src_optimal,
             readBackBuffer.buffer,
@@ -341,8 +524,8 @@ pub const Editor = struct {
                     .z = 0,
                 },
                 .image_extent = gfx.Extent3D{
-                    .width = viewport[0].getWidth(),
-                    .height = viewport[0].getHeight(),
+                    .width = graphics.InputState.viewportX,
+                    .height = graphics.InputState.viewportY,
                     .depth = 1,
                 },
                 .image_subresource = gfx.ImageSubresourceLayers{
@@ -354,66 +537,26 @@ pub const Editor = struct {
             }),
         );
 
-        try gfx.device.endCommandBuffer(cmdList);
-
-        const signalValue = graphics.Renderer._semaphoreValue + 1;
-        var waitValue = graphics.Renderer._semaphoreValue;
-        graphics.Renderer._semaphoreValue += 1;
-
-        try gfx.device.queueSubmit(gfx.renderQueue, 1, &[_]gfx.SubmitInfo{
-            gfx.SubmitInfo{
-                .p_next = &gfx.TimelineSemaphoreSubmitInfo{
-                    .p_signal_semaphore_values = @ptrCast(&signalValue),
-                    .signal_semaphore_value_count = 1,
-                    .p_wait_semaphore_values = @ptrCast(&waitValue),
-                    .wait_semaphore_value_count = 1,
-                },
-                .p_command_buffers = &[_]gfx.CommandBuffer{cmdList},
-                .command_buffer_count = 1,
-                .p_wait_dst_stage_mask = &[_]gfx.PipelineStageFlags{ .{ .color_attachment_output_bit = true }, .{ .color_attachment_output_bit = true } },
-                .p_signal_semaphores = &[_]gfx.Semaphore{graphics.Renderer._timelineSemaphore},
-                .signal_semaphore_count = 1,
-                .p_wait_semaphores = &[_]gfx.Semaphore{graphics.Renderer._timelineSemaphore},
-                .wait_semaphore_count = 1,
-            },
-        }, gfx.Fence.null_handle);
-
-        waitValue = signalValue;
-
-        _ = try gfx.device.waitSemaphores(&gfx.SemaphoreWaitInfo{
-            .p_semaphores = @ptrCast(&graphics.Renderer._timelineSemaphore),
-            .p_values = &[_]u64{waitValue},
-            .semaphore_count = 1,
-        }, ~@as(u64, 0));
-
-        const data = try gfx.startReadMemory(
-            gfx.vkAllocator,
-            readBackBuffer,
-            viewport[0].getWidth() * viewport[0].getHeight() * 2 * @sizeOf(u32),
+        gfx.device.cmdPipelineBarrier(
+            graphics.Renderer.getCurrentCmdList(),
+            gfx.PipelineStageFlags{ .transfer_bit = true },
+            gfx.PipelineStageFlags{ .transfer_bit = true },
+            gfx.DependencyFlags{},
+            0,
+            undefined,
+            1,
+            @ptrCast(&gfx.BufferMemoryBarrier{
+                .buffer = readBackBuffer.buffer,
+                .offset = 0,
+                .size = graphics.InputState.viewportX * graphics.InputState.viewportY * 2 * @sizeOf(u32),
+                .src_access_mask = .{ .transfer_write_bit = true },
+                .dst_access_mask = .{ .transfer_write_bit = true },
+                .src_queue_family_index = gfx.QUEUE_FAMILY_IGNORED,
+                .dst_queue_family_index = gfx.QUEUE_FAMILY_IGNORED,
+            }),
+            0,
+            undefined,
         );
-        defer gfx.stopReadMemory(gfx.vkAllocator, readBackBuffer);
-
-        if (StateManager.inEditor and
-            graphics.InputState.mouseX - 1 >= 0 and
-            graphics.InputState.mouseY - 1 >= 0)
-        {
-            const mouseX: u32 = @intFromFloat(graphics.InputState.mouseX - 1);
-            const mouseY: u32 = @intFromFloat(graphics.InputState.mouseY - 1);
-
-            if (mouseX < viewport[0].getWidth() and
-                mouseY < viewport[0].getHeight())
-            {
-                const pixelReadPos = mouseY * viewport[0].getWidth() + mouseX;
-                const idData = @as([*]u64, @ptrCast(@alignCast(data.ptr)))[0 .. data.len / 4];
-
-                const id = idData[pixelReadPos];
-                if (id != 0) {
-                    const enttName: [*:0]const u8 = flecs.get_name(_scene, id).?;
-
-                    util.log.info("{s}", .{enttName});
-                }
-            }
-        }
     }
 
     fn createReadBackData(width: u32, height: u32) !void {

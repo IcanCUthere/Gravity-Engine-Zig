@@ -703,7 +703,7 @@ const Begin = struct {
     popen: ?*bool = null,
     flags: WindowFlags = .{},
 };
-pub fn begin(name: [:0]const u8, args: Begin) bool {
+pub fn begin(name: [*:0]const u8, args: Begin) bool {
     return zguiBegin(name, args.popen, args.flags);
 }
 /// `pub fn end() void`

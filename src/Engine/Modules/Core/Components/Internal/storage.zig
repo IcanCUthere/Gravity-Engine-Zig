@@ -4,9 +4,15 @@ const io = @import("io.zig");
 
 var meshStorage = util.StringHashMap(*io.ModelData).init(util.mem.heap);
 
-pub fn init() void {}
+//pub var defaultTexture: io.Image = undefined;
+
+pub fn init() !void {
+    //defaultTexture = try io.stbi.Image.loadFromFile("resources/defaultTexture.png", 4);
+}
 
 pub fn deinit() void {
+    //defaultTexture.deinit();
+
     var iter = meshStorage.valueIterator();
 
     var item = iter.next();

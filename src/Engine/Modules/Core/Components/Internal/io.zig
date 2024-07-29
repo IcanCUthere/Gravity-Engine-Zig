@@ -1,9 +1,11 @@
 const util = @import("util");
 const mem = util.mem;
 
-const stbi = @import("zstbi");
-const msh = @import("zmesh");
-const gltf = msh.io.zcgltf;
+pub const stbi = @import("zstbi");
+pub const msh = @import("zmesh");
+pub const gltf = msh.io.zcgltf;
+
+const storage = @import("storage.zig");
 
 pub const Vertex = struct {
     pos: [3]f32,
@@ -95,6 +97,13 @@ pub fn loadModelFromFile(path: [:0]const u8) !ModelData {
                         util.log.print("Has no occlusion texture", .{}, .Info, .Verbose, .{ .MeshLoading = true });
                     }
                 }
+            } else {
+                util.log.print("Has no material", .{}, .Info, .Verbose, .{ .MeshLoading = true });
+
+                model.baseColor = try stbi.Image.loadFromFile("resources/textures/defaultTexture.png", 4);
+                model.metallicRoughness = try stbi.Image.loadFromFile("resources/textures/defaultTexture.png", 2);
+                model.normals = try stbi.Image.loadFromFile("resources/textures/defaultTexture.png", 3);
+                model.occlusion = try stbi.Image.loadFromFile("resources/textures/defaultTexture.png", 1);
             }
         }
     }

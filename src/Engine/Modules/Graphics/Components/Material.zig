@@ -9,6 +9,34 @@ const core = @import("CoreModule");
 const gfx = @import("Internal/interface.zig");
 const Renderer = @import("Renderer.zig").Renderer;
 
+const shaders = @import("shaders");
+
+pub const CreateOptions = struct {
+    vertexShader: gfx.ShaderModule,
+    fragmentShader: gfx.ShaderModule,
+    vertexBindings: []gfx.VertexInputBindingDescription,
+    vertexAttributes: []gfx.VertexInputAttributeDescription,
+    descriptorSetLayouts: []gfx.DescriptorSetLayout,
+    depthEnable: bool,
+};
+
+pub const Archetype = enum(u8) {
+    Unlit,
+    PBR,
+};
+
+pub fn CreateOptionsFromArchetype(archetype: Archetype) CreateOptions {
+    switch (archetype) {
+        .Unlit => return CreateOptions{
+            .vertexShader = shaders.shader_vert,
+            .fragmentShader = shaders.shader_frag,
+
+            .depthEnable = true,
+        },
+        .PBR => return .{},
+    }
+}
+
 pub const Material = struct {
     const Self = @This();
     var _scene: *flecs.world_t = undefined;
@@ -168,8 +196,35 @@ pub const Material = struct {
             Renderer._renderPass,
             self.vertexModule,
             self.fragmentModule,
-            100,
-            100,
+            &[_]gfx.VertexInputBindingDescription{
+                gfx.VertexInputBindingDescription{
+                    .binding = 0,
+                    .stride = 32,
+                    .input_rate = gfx.VertexInputRate.vertex,
+                },
+            },
+            &[_]gfx.VertexInputAttributeDescription{
+                gfx.VertexInputAttributeDescription{
+                    .binding = 0,
+                    .location = 0,
+                    .offset = 0,
+                    .format = gfx.Format.r32g32b32_sfloat,
+                },
+                gfx.VertexInputAttributeDescription{
+                    .binding = 0,
+                    .location = 1,
+                    .offset = 12,
+                    .format = gfx.Format.r32g32b32_sfloat,
+                },
+                gfx.VertexInputAttributeDescription{
+                    .binding = 0,
+                    .location = 2,
+                    .offset = 24,
+                    .format = gfx.Format.r32g32_sfloat,
+                },
+            },
+            true,
+            null,
         );
 
         try gfx.device.allocateDescriptorSets(&gfx.DescriptorSetAllocateInfo{

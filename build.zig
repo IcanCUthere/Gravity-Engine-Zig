@@ -53,6 +53,7 @@ pub fn build(b: *std.Build) void {
         .shared = false,
         .backend = .glfw_vulkan,
     });
+    const zshaderc = b.dependency("zshaderc", .{});
 
     const utils = b.createModule(std.Build.Module.CreateOptions{
         .root_source_file = b.path("src/Utility/utils.zig"),
@@ -74,12 +75,12 @@ pub fn build(b: *std.Build) void {
     });
     graphicsModule.addImport("zflecs", zflecs.module("root"));
     graphicsModule.addImport("ztracy", ztracy.module("root"));
+    graphicsModule.addImport("zglfw", zglfw.module("root"));
+    graphicsModule.addImport("zstbi", zstbi.module("root"));
+    graphicsModule.addImport("zshaderc", zshaderc.module("root"));
     graphicsModule.addImport("CoreModule", coreModule);
     graphicsModule.addImport("util", utils);
     graphicsModule.addImport("vulkan", vkzig.module("vulkan-zig"));
-    graphicsModule.addImport("zglfw", zglfw.module("root"));
-    graphicsModule.addImport("ztracy", ztracy.module("root"));
-    graphicsModule.addImport("zstbi", zstbi.module("root"));
     graphicsModule.addIncludePath(b.path("libs/vulkan/"));
     graphicsModule.addCSourceFile(.{
         .file = b.path("libs/vulkan/vk_mem_alloc.cpp"),
@@ -113,26 +114,6 @@ pub fn build(b: *std.Build) void {
     modulesModule.addImport("EditorModule", editorModule);
     modulesModule.addImport("GameModule", gameModule);
 
-    const gameShaderCompiler = vkgen.ShaderCompileStep.create(
-        b,
-        &[_][]const u8{ "glslc", "--target-env=vulkan1.2" },
-        "-o",
-    );
-    gameShaderCompiler.add("shader_vert", "resources/vertex_shader.vert", .{});
-    gameShaderCompiler.add("shader_frag", "resources/fragment_shader.frag", .{});
-
-    const editorShaderCompiler = vkgen.ShaderCompileStep.create(
-        b,
-        &[_][]const u8{ "glslc", "--target-env=vulkan1.2" },
-        "-o",
-    );
-    editorShaderCompiler.add("editor_vert", "resources/vertexShader.vert", .{});
-    editorShaderCompiler.add("editor_frag", "resources/fragmentShader.frag", .{});
-
-    //graphicsModule.addImport("shaders", shader_comp.getModule());
-    gameModule.addImport("shaders", gameShaderCompiler.getModule());
-    editorModule.addImport("shaders", editorShaderCompiler.getModule());
-
     for ([_]*std.Build.Step.Compile{ exe, tests }) |cmp| {
         cmp.root_module.addImport("zphysics", zphysics.module("root"));
         cmp.root_module.addImport("ztracy", ztracy.module("root"));
@@ -157,13 +138,12 @@ pub fn build(b: *std.Build) void {
         cmp.root_module.addImport("zmath", zmath.module("root"));
         cmp.root_module.addImport("zmesh", zmesh.module("root"));
         cmp.root_module.addImport("zgui", zgui.module("root"));
+        cmp.root_module.addImport("zshaderc", zshaderc.module("root"));
         cmp.root_module.addImport("util", utils);
         cmp.root_module.addImport("CoreModule", coreModule);
         cmp.root_module.addImport("GraphicsModule", graphicsModule);
         cmp.root_module.addImport("EditorModule", editorModule);
         cmp.root_module.addImport("GameModule", gameModule);
-        cmp.root_module.addImport("shaders", gameShaderCompiler.getModule());
-        cmp.root_module.addImport("shaders", editorShaderCompiler.getModule());
 
         b.installArtifact(cmp);
 

@@ -1,0 +1,9 @@
+[submodule "libs/zshaderc/libs/SPIRV-Headers"]
+	path = libs/zshaderc/libs/SPIRV-Headers
+	url = https://github.com/KhronosGroup/SPIRV-Headers.git
+[submodule "libs/zshaderc/libs/SPIRV-Tools"]
+	path = libs/zshaderc/libs/SPIRV-Tools
+	url = https://github.com/KhronosGroup/SPIRV-Tools.git
+[submodule "libs/zshaderc/libs/glslang"]
+	path = libs/zshaderc/libs/glslang
+	url = https://github.com/KhronosGroup/glslang.git

@@ -96,7 +96,14 @@ pub const ModelInstance = struct {
         const tracy_zone = tracy.ZoneNC(@src(), "Update model instances", 0x00_ff_ff_00);
         defer tracy_zone.End();
 
-        for (models, transforms) |m, t| {
+        //TODO: make more performant, no need to update every frame
+        for (models, transforms) |m, *t| {
+            t.translationMatrix = util.math.translation(
+                t.localPosition[0],
+                t.localPosition[1],
+                t.localPosition[2],
+            );
+
             try Renderer.addStagingData(Renderer.StagingData{
                 .data = &mem.toBytes(t.translationMatrix),
                 .dstBuffer = m.modelMatrixUniform,

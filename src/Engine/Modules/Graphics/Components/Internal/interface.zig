@@ -20,6 +20,8 @@ var deviceDispatch: vk.DeviceDispatch = undefined;
 pub var renderFamily: u32 = undefined;
 pub var renderQueue: vk.Queue = undefined;
 
+var deviceProperties: vk.PhysicalDeviceProperties = undefined;
+
 const required_device_extensions = [_][*:0]const u8{
     vk.extensions.khr_swapchain.name,
 };
@@ -48,22 +50,8 @@ pub fn init() !void {
 
     physicalDevice = try findBestDevice();
 
-    const properties = instance.getPhysicalDeviceProperties(physicalDevice);
-    util.log.print("Used Graphics Card: {s}, Driver Version: {d}", .{ properties.device_name, properties.driver_version }, .Info, .Abstract, .{ .Vulkan = true });
-
-    inline for (@typeInfo(vk.Format).Enum.fields) |format| {
-        const props = instance.getPhysicalDeviceFormatProperties(
-            physicalDevice,
-            @enumFromInt(format.value),
-        );
-
-        if (props.optimal_tiling_features.transfer_src_bit and
-            props.linear_tiling_features.transfer_dst_bit and
-            props.optimal_tiling_features.color_attachment_bit)
-        {
-            util.log.info("Format supported: {s}", .{format.name});
-        }
-    }
+    deviceProperties = instance.getPhysicalDeviceProperties(physicalDevice);
+    util.log.print("Used Graphics Card: {s}, Driver Version: {d}", .{ deviceProperties.device_name, deviceProperties.driver_version }, .Info, .Abstract, .{ .Vulkan = true });
 
     renderFamily = try getGraphicsFamily(physicalDevice);
 
@@ -213,7 +201,16 @@ pub fn createRenderPass(viewportFormat: vk.Format, clear: bool) !vk.RenderPass {
     }, null);
 }
 
-pub fn createPipeline(layout: vk.PipelineLayout, renderPass: vk.RenderPass, vertModule: vk.ShaderModule, fragModule: vk.ShaderModule, width: u32, height: u32) !vk.Pipeline {
+pub fn createPipeline(
+    layout: vk.PipelineLayout,
+    renderPass: vk.RenderPass,
+    vertModule: vk.ShaderModule,
+    fragModule: vk.ShaderModule,
+    vertexBindings: []const vk.VertexInputBindingDescription,
+    vertexAttributes: []const vk.VertexInputAttributeDescription,
+    depthEnable: bool,
+    comptime viewportSize: ?[2]f32,
+) !vk.Pipeline {
     const stages = [_]vk.PipelineShaderStageCreateInfo{
         vk.PipelineShaderStageCreateInfo{
             .p_name = "main",
@@ -227,39 +224,10 @@ pub fn createPipeline(layout: vk.PipelineLayout, renderPass: vk.RenderPass, vert
         },
     };
 
-    const vertBindings = [_]vk.VertexInputBindingDescription{
-        vk.VertexInputBindingDescription{
-            .binding = 0,
-            .stride = 32,
-            .input_rate = vk.VertexInputRate.vertex,
-        },
-    };
-    const vertAttribs = [_]vk.VertexInputAttributeDescription{
-        vk.VertexInputAttributeDescription{
-            .binding = 0,
-            .location = 0,
-            .offset = 0,
-            .format = vk.Format.r32g32b32_sfloat,
-        },
-        vk.VertexInputAttributeDescription{
-            .binding = 0,
-            .location = 1,
-            .offset = 12,
-            .format = vk.Format.r32g32b32_sfloat,
-        },
-
-        vk.VertexInputAttributeDescription{
-            .binding = 0,
-            .location = 2,
-            .offset = 24,
-            .format = vk.Format.r32g32_sfloat,
-        },
-    };
-
     const viewports = [_]vk.Viewport{
         vk.Viewport{
-            .height = @floatFromInt(width),
-            .width = @floatFromInt(height),
+            .width = if (viewportSize) |v| v[0] else 0,
+            .height = if (viewportSize) |v| v[1] else 0,
             .min_depth = 0.0,
             .max_depth = 1.0,
             .x = 0.0,
@@ -269,8 +237,14 @@ pub fn createPipeline(layout: vk.PipelineLayout, renderPass: vk.RenderPass, vert
 
     const scissors = [_]vk.Rect2D{
         vk.Rect2D{
-            .offset = .{ .x = 0, .y = 0 },
-            .extent = .{ .height = height, .width = width },
+            .offset = .{
+                .x = 0,
+                .y = 0,
+            },
+            .extent = .{
+                .width = if (viewportSize) |v| @intFromFloat(v[0]) else 0,
+                .height = if (viewportSize) |v| @intFromFloat(v[1]) else 0,
+            },
         },
     };
 
@@ -289,7 +263,12 @@ pub fn createPipeline(layout: vk.PipelineLayout, renderPass: vk.RenderPass, vert
             .blend_enable = vk.FALSE,
             .color_blend_op = vk.BlendOp.add,
             .alpha_blend_op = vk.BlendOp.add,
-            .color_write_mask = vk.ColorComponentFlags{ .a_bit = true, .r_bit = true, .g_bit = true, .b_bit = true },
+            .color_write_mask = vk.ColorComponentFlags{
+                .a_bit = true,
+                .r_bit = true,
+                .g_bit = true,
+                .b_bit = true,
+            },
             .src_color_blend_factor = vk.BlendFactor.one,
             .dst_color_blend_factor = vk.BlendFactor.zero,
             .src_alpha_blend_factor = vk.BlendFactor.one,
@@ -297,10 +276,10 @@ pub fn createPipeline(layout: vk.PipelineLayout, renderPass: vk.RenderPass, vert
         },
     };
 
-    const dynamicStates = [_]vk.DynamicState{
+    const dynamicStates = if (viewportSize == null) [_]vk.DynamicState{
         vk.DynamicState.viewport,
         vk.DynamicState.scissor,
-    };
+    } else [_]vk.DynamicState{};
 
     var pipeline: vk.Pipeline = undefined;
 
@@ -314,10 +293,10 @@ pub fn createPipeline(layout: vk.PipelineLayout, renderPass: vk.RenderPass, vert
             .p_stages = &stages,
             .stage_count = @intCast(stages.len),
             .p_vertex_input_state = &vk.PipelineVertexInputStateCreateInfo{
-                .p_vertex_attribute_descriptions = &vertAttribs,
-                .vertex_attribute_description_count = @intCast(vertAttribs.len),
-                .p_vertex_binding_descriptions = &vertBindings,
-                .vertex_binding_description_count = @intCast(vertBindings.len),
+                .p_vertex_attribute_descriptions = vertexAttributes.ptr,
+                .vertex_attribute_description_count = @intCast(vertexAttributes.len),
+                .p_vertex_binding_descriptions = vertexBindings.ptr,
+                .vertex_binding_description_count = @intCast(vertexBindings.len),
             },
             .p_input_assembly_state = &vk.PipelineInputAssemblyStateCreateInfo{
                 .primitive_restart_enable = vk.FALSE,
@@ -353,8 +332,8 @@ pub fn createPipeline(layout: vk.PipelineLayout, renderPass: vk.RenderPass, vert
                 .p_sample_mask = null,
             },
             .p_depth_stencil_state = &vk.PipelineDepthStencilStateCreateInfo{
-                .depth_test_enable = vk.TRUE,
-                .depth_write_enable = vk.TRUE,
+                .depth_test_enable = if (depthEnable) vk.TRUE else vk.FALSE,
+                .depth_write_enable = if (depthEnable) vk.TRUE else vk.FALSE,
                 .depth_bounds_test_enable = vk.FALSE,
                 .stencil_test_enable = vk.FALSE,
                 .depth_compare_op = vk.CompareOp.less,
@@ -380,6 +359,14 @@ pub fn createPipeline(layout: vk.PipelineLayout, renderPass: vk.RenderPass, vert
     _ = try device.createGraphicsPipelines(vk.PipelineCache.null_handle, 1, @ptrCast(&createInfo), null, @ptrCast(&pipeline));
 
     return pipeline;
+}
+
+pub fn getGraphicsCardName() []const u8 {
+    return &deviceProperties.device_name;
+}
+
+pub fn getDriverVersion() u32 {
+    return deviceProperties.driver_version;
 }
 
 fn checkSuitable(pdev: vk.PhysicalDevice) !bool {
