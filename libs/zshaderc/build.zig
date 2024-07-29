@@ -25,13 +25,11 @@ fn isTestFile(fileName: []const u8) bool {
 }
 
 fn isIgnored(path: []const u8) bool {
-    var iter = std.mem.split(u8, path, "\\");
-
-    while (iter.next()) |subpath| {
-        for (ignoredSubpaths) |ignored| {
-            if (std.mem.eql(u8, subpath, ignored)) {
-                return true;
-            }
+    inline for (ignoredSubpaths) |ignored| {
+        if (std.mem.indexOf(u8, path, ignored ++ "/") != null or
+            std.mem.indexOf(u8, path, ignored ++ "\\") != null)
+        {
+            return true;
         }
     }
 
@@ -195,7 +193,10 @@ pub fn build(b: *std.Build) !void {
     defer outDir.close();
 
     outDir.makeDir("glslang") catch {};
-    var file = try outDir.createFile("glslang\\build_info.h", .{});
+    var glslangOutDir = try outDir.openDir("glslang", .{});
+    defer glslangOutDir.close();
+
+    var file = try glslangOutDir.createFile("build_info.h", .{});
     defer file.close();
 
     _ = try file.write("#define GLSLANG_VERSION_MAJOR 0\n");
