@@ -78,7 +78,7 @@ fn findCppFilesInPath(comptime subPath: []const u8, ext: []const u8) ![][]const 
     return try res.toOwnedSlice();
 }
 
-const out_dir = "libs/build_out/";
+const out_dir = "libs/cache/";
 const header_dir = "libs/SPIRV-Headers/include/";
 
 fn coreTable(b: *std.Build) void {
@@ -187,7 +187,11 @@ pub fn build(b: *std.Build) !void {
     buildVersion(b);
     generators(b);
 
-    var outDir = try std.fs.openDirAbsolute(b.path(out_dir).getPath(b), .{});
+    var buildDir = try std.fs.openDirAbsolute(b.path(".").getPath(b), .{});
+    defer buildDir.close();
+
+    buildDir.makeDir(out_dir) catch {};
+    var outDir = try buildDir.openDir(out_dir, .{});
     defer outDir.close();
 
     outDir.makeDir("glslang") catch {};
