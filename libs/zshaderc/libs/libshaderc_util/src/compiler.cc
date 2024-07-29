@@ -155,7 +155,7 @@ void Compiler::SetLimit(Compiler::Limit limit, int value) {
   case Limit::NAME:                  \
     limits_.FIELD = value;           \
     break;
-#include "libshaderc_util/resources.inc"
+//#include "libshaderc_util/resources.inc"
 #undef RESOURCE
   }
 }
@@ -165,7 +165,7 @@ int Compiler::GetLimit(Compiler::Limit limit) const {
 #define RESOURCE(NAME, FIELD, CNAME) \
   case Limit::NAME:                  \
     return limits_.FIELD;
-#include "libshaderc_util/resources.inc"
+//#include "libshaderc_util/resources.inc"
 #undef RESOURCE
   }
   return 0;  // Unreachable

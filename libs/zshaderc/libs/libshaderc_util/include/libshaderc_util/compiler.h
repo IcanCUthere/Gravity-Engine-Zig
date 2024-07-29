@@ -118,7 +118,7 @@ class Compiler {
   // glslang::TBuiltInResource.
   enum class Limit {
 #define RESOURCE(NAME, FIELD, CNAME) NAME,
-#include "resources.inc"
+//#include "resources.inc"
 #undef RESOURCE
   };
 

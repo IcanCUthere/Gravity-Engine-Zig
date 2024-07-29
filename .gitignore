@@ -7,7 +7,4 @@ zig-out
 *cache*
 *.inc
 
-# submodules
-*glslang*
-*SPIRV-Headers*
-*SPIRV-Tools*
+*build_info.h*

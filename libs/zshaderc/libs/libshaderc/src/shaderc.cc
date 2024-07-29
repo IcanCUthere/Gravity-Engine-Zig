@@ -325,7 +325,7 @@ shaderc_util::Compiler::Limit CompilerLimit(shaderc_limit limit) {
 #define RESOURCE(NAME, FIELD, CNAME) \
   case shaderc_limit_##CNAME:        \
     return shaderc_util::Compiler::Limit::NAME;
-#include "libshaderc_util/resources.inc"
+//#include "libshaderc_util/resources.inc"
 #undef RESOURCE
     default:
       break;
