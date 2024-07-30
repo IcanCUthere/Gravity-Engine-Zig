@@ -62,13 +62,13 @@ pub const Editor = struct {
             .max_sets = 1,
         }, null);
 
-        const vertexCode = graphics.shaders.get("id.vert");
+        const vertexCode = try graphics.shaders.getOrAdd("resources/shaders/id/id.vert");
         vertexModule = try gfx.device.createShaderModule(&gfx.ShaderModuleCreateInfo{
             .code_size = vertexCode.len,
             .p_code = @ptrCast(@alignCast(vertexCode.ptr)),
         }, null);
 
-        const fragmentCode = graphics.shaders.get("id.frag");
+        const fragmentCode = try graphics.shaders.getOrAdd("resources/shaders/id/id.frag");
         fragmentModule = try gfx.device.createShaderModule(&gfx.ShaderModuleCreateInfo{
             .code_size = fragmentCode.len,
             .p_code = @ptrCast(@alignCast(fragmentCode.ptr)),
@@ -77,6 +77,7 @@ pub const Editor = struct {
         renderPass = try createRenderPass();
         pipelineLayout = try createPipelineLayout();
         idPipeline = try gfx.createPipeline(
+            .null_handle,
             pipelineLayout,
             renderPass,
             vertexModule,
@@ -150,17 +151,17 @@ pub const Editor = struct {
         //    graphics.shaders.get("gizmo.frag"),
         //);
 
-        //const gizmo = try graphics.Model.new(
-        //    "Gizmo",
-        //    "resources/models/Gizmo.glb",
-        //    gizmoMat,
-        //);
+        const gizmo = try graphics.Model.new(
+            "Gizmo",
+            "resources/models/Gizmo.glb",
+            graphics.Graphics.baseMaterial,
+        );
 
-        //_ = try graphics.ModelInstance.new(
-        //    "GizmoInstance",
-        //    gizmo,
-        //    util.math.videntity(),
-        //);
+        _ = try graphics.ModelInstance.new(
+            "GizmoInstance",
+            gizmo,
+            util.math.videntity(),
+        );
     }
 
     pub fn preDeinit() !void {}

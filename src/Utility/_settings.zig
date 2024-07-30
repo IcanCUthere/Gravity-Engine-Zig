@@ -1,7 +1,8 @@
 // -- Log Settings --
 pub const UsedLogContext = LogContext{
-    .Vulkan = true,
-    .ShaderLoading = true,
+    //.Vulkan = true,
+    //.ShaderLoading = true,
+    .MeshLoading = true,
 };
 pub const UsedLogLevel = LogLevel.Verbose;
 pub const UsedLogType = LogType.Info;

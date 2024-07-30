@@ -8,115 +8,187 @@ const mem = util.mem;
 
 const StorageType = []const u8;
 var storage: util.StringHashMap(StorageType) = undefined;
+var compiler: shaderc.Compiler = undefined;
+
+const cacheExt = ".cache";
+const shaderPath = "resources/shaders/";
+const pipelineCachePath = shaderPath ++ "pipeline_cache/";
 
 pub fn init() !void {
+    try shaderc.init(mem.heap);
+    compiler = shaderc.Compiler.init();
     storage = util.StringHashMap(StorageType).init(mem.heap);
 
-    var shaderDir = try fs.cwd().openDir(
-        "resources/shaders",
-        fs.Dir.OpenDirOptions{
-            .access_sub_paths = true,
-            .iterate = true,
-        },
-    );
-    defer shaderDir.close();
-
-    try shaderc.init(mem.heap);
-    defer shaderc.deinit();
-
-    var compiler = shaderc.Compiler.init();
-    defer compiler.deinit();
-
-    var walker = try shaderDir.walk(mem.heap);
-    defer walker.deinit();
-
-    while (try walker.next()) |f| {
-        if (mem.indexOf(u8, f.path, ".cache.")) |_| {
-            continue;
-        }
-
-        if (f.kind == .file) {
-            const cachePath = try getCachePath(f.path);
-            defer mem.heap.free(cachePath);
-
-            const shaderCode = try codeFromCache(shaderDir, cachePath) orelse fromFile: {
-                const code = try codeFromFile(shaderDir, f.path, f.basename, compiler);
-                try codeToCache(shaderDir, cachePath, code);
-                break :fromFile code;
-            };
-
-            const name = try mem.heap.allocSentinel(u8, f.basename.len, 0);
-            mem.copyForwards(u8, name, f.basename);
-
-            try storage.put(name, shaderCode);
-        }
-    }
+    fs.cwd().makeDir(pipelineCachePath) catch {};
 }
 
 pub fn deinit() void {
     var iter = storage.iterator();
     while (iter.next()) |entry| {
-        mem.heap.free(@as(*[:0]const u8, @ptrCast(entry.key_ptr)).*);
+        mem.heap.free(entry.key_ptr.*);
         mem.heap.free(entry.value_ptr.*);
     }
 
     storage.deinit();
+    compiler.deinit();
+    shaderc.deinit();
 }
 
-pub fn get(name: []const u8) []const u8 {
-    return storage.get(name).?;
+pub fn getOrAdd(path: []const u8) ![]const u8 {
+    if (storage.get(path)) |sh|
+        return sh;
+
+    const cachePath = try getCachePath(path);
+    defer mem.heap.free(cachePath);
+
+    const meta = try (try fs.cwd().openFile(path, .{})).metadata();
+
+    const shaderCode = try codeFromCache(cachePath, meta.modified()) orelse fromFile: {
+        const code = try codeFromFile(path);
+        try codeToCache(cachePath, code, meta.modified());
+        break :fromFile code;
+    };
+
+    const name = try mem.heap.alloc(u8, path.len);
+    mem.copyForwards(u8, name, path);
+
+    try storage.put(name, shaderCode);
+
+    return shaderCode;
+}
+
+pub fn getPipelineCache(
+    name: []const u8,
+    vertPath: ?[]const u8,
+    fragPath: ?[]const u8,
+    compPath: ?[]const u8,
+    tescPath: ?[]const u8,
+    tesePath: ?[]const u8,
+) !?[]const u8 {
+    var cacheDir = try fs.cwd().openDir(pipelineCachePath, .{});
+    defer cacheDir.close();
+
+    var file = cacheDir.openFile(name, .{}) catch return null;
+    defer file.close();
+
+    const reader = file.reader();
+
+    if (try checkShaderModified(vertPath, reader) or
+        try checkShaderModified(fragPath, reader) or
+        try checkShaderModified(compPath, reader) or
+        try checkShaderModified(tescPath, reader) or
+        try checkShaderModified(tesePath, reader))
+    {
+        return null;
+    }
+
+    if (try reader.readInt(i128, .little) != 0) {
+        return null;
+    }
+
+    util.log.print("Reading material cache for {s}", .{name}, .Info, .Verbose, .{ .ShaderLoading = true });
+
+    return try reader.readAllAlloc(mem.heap, util.math.maxInt(u32));
+}
+
+pub fn addPipelineCache(
+    name: []const u8,
+    data: []const u8,
+    vertPath: ?[]const u8,
+    fragPath: ?[]const u8,
+    compPath: ?[]const u8,
+    tescPath: ?[]const u8,
+    tesePath: ?[]const u8,
+) !void {
+    util.log.print("Overwriting material cache for {s}", .{name}, .Info, .Verbose, .{ .ShaderLoading = true });
+
+    var cacheDir = try fs.cwd().openDir(pipelineCachePath, .{});
+    defer cacheDir.close();
+
+    var file = try cacheDir.createFile(name, .{});
+    defer file.close();
+
+    const writer = file.writer();
+
+    var shaderDir = try fs.cwd().openDir(shaderPath, .{});
+    defer shaderDir.close();
+
+    try writeShaderModified(vertPath, writer);
+    try writeShaderModified(fragPath, writer);
+    try writeShaderModified(compPath, writer);
+    try writeShaderModified(tescPath, writer);
+    try writeShaderModified(tesePath, writer);
+
+    try writer.writeInt(i128, 0, .little);
+
+    _ = try writer.write(data);
+}
+
+fn checkShaderModified(shPath: ?[]const u8, reader: fs.File.Reader) !bool {
+    if (shPath) |path| {
+        var f = try fs.cwd().openFile(path, .{});
+        defer f.close();
+
+        const meta = try f.metadata();
+        const modifiedOld = try reader.readInt(i128, .little);
+
+        if (modifiedOld != meta.modified())
+            return true;
+    }
+
+    return false;
+}
+
+fn writeShaderModified(shPath: ?[]const u8, writer: fs.File.Writer) !void {
+    if (shPath) |path| {
+        var f = try fs.cwd().openFile(path, .{});
+        defer f.close();
+        const meta = try f.metadata();
+
+        try writer.writeInt(i128, meta.modified(), .little);
+    }
 }
 
 fn getCachePath(subpath: []const u8) ![]const u8 {
-    const name = @as(*[*:0]const u8, @ptrCast(@constCast(&gfx.getGraphicsCardName()))).*;
-    const len = mem.indexOfSentinel(u8, 0, name);
-
-    const cachePath = try mem.heap.alloc(u8, subpath.len + 7 + len);
+    const cachePath = try mem.heap.alloc(u8, subpath.len + cacheExt.len);
     mem.copyForwards(u8, cachePath, subpath);
-    mem.copyForwards(u8, cachePath[subpath.len..], ".cache.");
-    mem.copyForwards(u8, cachePath[subpath.len + 7 ..], name[0..len]);
+    mem.copyForwards(u8, cachePath[subpath.len..], cacheExt);
 
     return cachePath;
 }
 
-fn codeToCache(dir: fs.Dir, subpath: []const u8, code: []const u8) !void {
-    const file = try dir.createFile(subpath, .{});
+fn codeToCache(subpath: []const u8, code: []const u8, newLastModified: i128) !void {
+    const file = try fs.cwd().createFile(subpath, .{});
     defer file.close();
 
     var writer = file.writer();
-    _ = try writer.writeInt(u32, gfx.getDriverVersion(), .little);
+    _ = try writer.writeInt(i128, newLastModified, .little);
     _ = try writer.write(code);
 }
 
-fn codeFromCache(dir: fs.Dir, subpath: []const u8) !?[]const u8 {
-    const cacheFile: ?fs.File = dir.openFile(
+fn codeFromCache(subpath: []const u8, lastModified: i128) !?[]const u8 {
+    const cacheFile = fs.cwd().openFile(
         subpath,
         .{ .mode = .read_only },
-    ) catch null;
+    ) catch return null;
 
-    if (cacheFile) |file| {
-        var driverVersBytes: [@sizeOf(u32)]u8 = undefined;
-        _ = try file.read(&driverVersBytes);
+    var reader = cacheFile.reader();
+    const oldLastModified = try reader.readInt(i128, .little);
 
-        const driverVersion = @as(*u32, @ptrCast(@alignCast(&driverVersBytes))).*;
-        const code = try file.readToEndAlloc(mem.heap, util.math.maxInt(u32));
-
-        if (driverVersion != gfx.getDriverVersion()) {
-            util.log.print("Shader in cache {s} has different driver version", .{subpath}, .Info, .Verbose, .{ .ShaderLoading = true });
-            mem.heap.free(code);
-            return null;
-        }
-
-        util.log.print("Loading shader {s} from cache", .{subpath}, .Info, .Verbose, .{ .ShaderLoading = true });
-
-        return code;
+    if (lastModified != oldLastModified) {
+        util.log.print("Shader in cache {s} outdated", .{subpath}, .Info, .Verbose, .{ .ShaderLoading = true });
+        return null;
     }
 
-    return null;
+    const code = try reader.readAllAlloc(mem.heap, util.math.maxInt(u32));
+
+    util.log.print("Loading shader {s} from cache", .{subpath}, .Info, .Verbose, .{ .ShaderLoading = true });
+
+    return code;
 }
 
-fn codeFromFile(dir: fs.Dir, subpath: []const u8, name: [:0]const u8, compiler: shaderc.Compiler) ![]const u8 {
-    var file = try dir.openFile(subpath, .{});
+fn codeFromFile(subpath: []const u8) ![]const u8 {
+    var file = try fs.cwd().openFile(subpath, .{});
     defer file.close();
 
     util.log.print("Loading shader {s} from file", .{subpath}, .Info, .Verbose, .{ .ShaderLoading = true });
@@ -126,8 +198,8 @@ fn codeFromFile(dir: fs.Dir, subpath: []const u8, name: [:0]const u8, compiler: 
 
     const res = try compiler.compile(
         shaderCode,
-        getShaderType(name[name.len - 5 ..]),
-        name,
+        getShaderType(subpath[subpath.len - 5 ..]),
+        subpath,
         "main",
         null,
     );
@@ -138,7 +210,7 @@ fn codeFromFile(dir: fs.Dir, subpath: []const u8, name: [:0]const u8, compiler: 
     return code;
 }
 
-fn getShaderType(ext: [:0]const u8) shaderc.ShaderKind {
+fn getShaderType(ext: []const u8) shaderc.ShaderKind {
     if (mem.eql(u8, ext, ".vert")) {
         return .vertex;
     } else if (mem.eql(u8, ext, ".frag")) {

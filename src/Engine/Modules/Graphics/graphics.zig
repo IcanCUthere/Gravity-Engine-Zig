@@ -134,8 +134,8 @@ pub const Graphics = struct {
 
         baseMaterial = try Material.new(
             "BaseMaterial",
-            shaders.get("default.vert"),
-            shaders.get("default.frag"),
+            "resources/shaders/default/default.vert",
+            "resources/shaders/default/default.frag",
         );
     }
 

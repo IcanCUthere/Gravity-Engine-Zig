@@ -1,4 +1,6 @@
 const util = @import("util");
+const mem = util.mem;
+const ArrayList = util.ArrayList;
 
 const flecs = @import("zflecs");
 const stbi = @import("zstbi");
@@ -9,33 +11,75 @@ const core = @import("CoreModule");
 const gfx = @import("Internal/interface.zig");
 const Renderer = @import("Renderer.zig").Renderer;
 
-const shaders = @import("shaders");
-
-pub const CreateOptions = struct {
-    vertexShader: gfx.ShaderModule,
-    fragmentShader: gfx.ShaderModule,
-    vertexBindings: []gfx.VertexInputBindingDescription,
-    vertexAttributes: []gfx.VertexInputAttributeDescription,
-    descriptorSetLayouts: []gfx.DescriptorSetLayout,
-    depthEnable: bool,
-};
+const shaders = @import("Internal/shaderStorage.zig");
 
 pub const Archetype = enum(u8) {
     Unlit,
     PBR,
 };
 
-pub fn CreateOptionsFromArchetype(archetype: Archetype) CreateOptions {
-    switch (archetype) {
-        .Unlit => return CreateOptions{
-            .vertexShader = shaders.shader_vert,
-            .fragmentShader = shaders.shader_frag,
+pub const CreateOptions = struct {
+    vertexShader: []const u8,
+    fragmentShader: []const u8,
+    tessControlShader: ?[]const u8,
+    tessEvalShader: ?[]const u8,
 
-            .depthEnable = true,
-        },
-        .PBR => return .{},
+    vertexBindings: ArrayList(gfx.VertexInputBindingDescription),
+    vertexAttributes: ArrayList(gfx.VertexInputAttributeDescription),
+
+    depthEnable: bool,
+
+    pub fn initFromArchetype(archetype: Archetype) CreateOptions {
+        switch (archetype) {
+            .Unlit => return CreateOptions{
+                .vertexShader = try shaders.getOrAdd("resources/shaders/unlit/unlit.vert"),
+                .fragmentShader = try shaders.getOrAdd("resources/shaders/unlit/unlit.frag"),
+                .tessControlShader = null,
+                .tessEvalShader = null,
+                .vertexBindings = list: {
+                    var bindings = ArrayList(gfx.VertexInputBindingDescription).init(mem.heap);
+                    const arr = try bindings.addManyAsArray(1);
+                    arr.* = [_]gfx.VertexInputBindingDescription{
+                        gfx.VertexInputBindingDescription{
+                            .binding = 0,
+                            .stride = 20,
+                            .input_rate = gfx.VertexInputRate.vertex,
+                        },
+                    };
+                    break :list bindings;
+                },
+                .vertexAttributes = list: {
+                    var attribs = ArrayList(gfx.VertexInputAttributeDescription).init(mem.heap);
+                    const arr = try attribs.addManyAsArray(2);
+                    arr.* = [_]gfx.VertexInputAttributeDescription{
+                        //position
+                        gfx.VertexInputAttributeDescription{
+                            .binding = 0,
+                            .location = 0,
+                            .offset = 0,
+                            .format = gfx.Format.r32g32b32_sfloat,
+                        },
+                        //texCoords
+                        gfx.VertexInputAttributeDescription{
+                            .binding = 0,
+                            .location = 1,
+                            .offset = 12,
+                            .format = gfx.Format.r32g32_sfloat,
+                        },
+                    };
+                    break :list attribs;
+                },
+                .depthEnable = true,
+            },
+            .PBR => return .{},
+        }
     }
-}
+
+    pub fn deinit(self: CreateOptions) void {
+        self.vertexAttributes.deinit();
+        self.vertexBindings.deinit();
+    }
+};
 
 pub const Material = struct {
     const Self = @This();
@@ -72,28 +116,31 @@ pub const Material = struct {
         return Prefab;
     }
 
-    pub fn new(name: [*:0]const u8, vertexShader: []const u8, fragmentShader: []const u8) !flecs.entity_t {
-        const newEntt = flecs.new_entity(_scene, name);
+    pub fn new(name: []const u8, vertexShaderPath: []const u8, fragmentShaderPath: []const u8) !flecs.entity_t {
+        const newEntt = flecs.new_entity(_scene, @ptrCast(name.ptr));
         flecs.add_pair(_scene, newEntt, flecs.IsA, getPrefab());
-        _ = flecs.set(_scene, newEntt, Self, try init(vertexShader, fragmentShader));
+        _ = flecs.set(_scene, newEntt, Self, try init(name, vertexShaderPath, fragmentShaderPath));
 
         return newEntt;
     }
 
-    pub fn init(vertexShader: []const u8, fragmentShader: []const u8) !Self {
+    pub fn init(name: []const u8, vertexShaderPath: []const u8, fragmentShaderPath: []const u8) !Self {
         const tracy_zone = tracy.ZoneNC(@src(), "Init material", 0x00_ff_ff_00);
         defer tracy_zone.End();
 
         var self: Self = undefined;
 
+        const vertexCode = try shaders.getOrAdd(vertexShaderPath);
+        const fragmentCode = try shaders.getOrAdd(fragmentShaderPath);
+
         self.vertexModule = try gfx.device.createShaderModule(&gfx.ShaderModuleCreateInfo{
-            .code_size = vertexShader.len,
-            .p_code = @ptrCast(@alignCast(vertexShader.ptr)),
+            .code_size = vertexCode.len,
+            .p_code = @ptrCast(@alignCast(vertexCode.ptr)),
         }, null);
 
         self.fragmentModule = try gfx.device.createShaderModule(&gfx.ShaderModuleCreateInfo{
-            .code_size = fragmentShader.len,
-            .p_code = @ptrCast(@alignCast(fragmentShader.ptr)),
+            .code_size = fragmentCode.len,
+            .p_code = @ptrCast(@alignCast(fragmentCode.ptr)),
         }, null);
 
         const globalPoolSizes = [_]gfx.DescriptorPoolSize{
@@ -191,7 +238,16 @@ pub const Material = struct {
             .push_constant_range_count = 0,
         }, null);
 
+        var cacheData = try shaders.getPipelineCache(name, vertexShaderPath, fragmentShaderPath, null, null, null);
+
+        const cache = try gfx.device.createPipelineCache(&gfx.PipelineCacheCreateInfo{
+            .initial_data_size = if (cacheData) |data| data.len else 0,
+            .p_initial_data = if (cacheData) |data| data.ptr else null,
+        }, null);
+        defer gfx.device.destroyPipelineCache(cache, null);
+
         self.pipeline = try gfx.createPipeline(
+            cache,
             self.pipelineLayout,
             Renderer._renderPass,
             self.vertexModule,
@@ -226,6 +282,16 @@ pub const Material = struct {
             true,
             null,
         );
+
+        if (cacheData == null) {
+            var dataSize: usize = undefined;
+            _ = try gfx.device.getPipelineCacheData(cache, &dataSize, null);
+            cacheData = try util.mem.heap.alloc(u8, dataSize);
+            defer util.mem.heap.free(cacheData.?);
+            _ = try gfx.device.getPipelineCacheData(cache, &dataSize, @ptrCast(@constCast(cacheData.?.ptr)));
+
+            try shaders.addPipelineCache(name, cacheData.?, vertexShaderPath, fragmentShaderPath, null, null, null);
+        }
 
         try gfx.device.allocateDescriptorSets(&gfx.DescriptorSetAllocateInfo{
             .descriptor_pool = self.materialDescriptorPool,

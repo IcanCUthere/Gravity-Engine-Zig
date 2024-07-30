@@ -202,6 +202,7 @@ pub fn createRenderPass(viewportFormat: vk.Format, clear: bool) !vk.RenderPass {
 }
 
 pub fn createPipeline(
+    cache: vk.PipelineCache,
     layout: vk.PipelineLayout,
     renderPass: vk.RenderPass,
     vertModule: vk.ShaderModule,
@@ -356,7 +357,7 @@ pub fn createPipeline(
         },
     };
 
-    _ = try device.createGraphicsPipelines(vk.PipelineCache.null_handle, 1, @ptrCast(&createInfo), null, @ptrCast(&pipeline));
+    _ = try device.createGraphicsPipelines(cache, 1, @ptrCast(&createInfo), null, @ptrCast(&pipeline));
 
     return pipeline;
 }

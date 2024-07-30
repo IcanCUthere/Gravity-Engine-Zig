@@ -23,17 +23,17 @@ pub const Mesh = struct {
 pub const Image = stbi.Image;
 
 pub const ModelData = struct {
-    mesh: Mesh,
-    baseColor: Image,
-    normals: Image,
-    metallicRoughness: Image,
-    occlusion: Image,
+    mesh: Mesh = undefined,
+    baseColor: Image = undefined,
+    normals: ?Image = null,
+    metallicRoughness: ?Image = null,
+    occlusion: ?Image = null,
 
     pub fn deinit(self: *ModelData) void {
         self.baseColor.deinit();
-        self.normals.deinit();
-        self.metallicRoughness.deinit();
-        self.occlusion.deinit();
+        if (self.normals) |*n| n.deinit();
+        if (self.metallicRoughness) |*mr| mr.deinit();
+        if (self.occlusion) |*o| o.deinit();
         util.mem.heap.free(self.mesh.vertexData);
         util.mem.heap.free(self.mesh.indexData);
     }
@@ -42,7 +42,7 @@ pub const ModelData = struct {
 pub fn loadModelFromFile(path: [:0]const u8) !ModelData {
     util.log.print("Loading model from file: {s}", .{path}, .Info, .Abstract, .{ .MeshLoading = true });
 
-    var model: ModelData = undefined;
+    var model: ModelData = .{};
 
     const gltfData = try msh.io.parseAndLoadFile(path);
     defer msh.io.freeData(gltfData);
@@ -67,27 +67,42 @@ pub fn loadModelFromFile(path: [:0]const u8) !ModelData {
 
             if (primitive.material) |mat| {
                 util.log.print("Metallic: {d}", .{mat.has_pbr_metallic_roughness}, .Info, .Verbose, .{ .MeshLoading = true });
-                util.log.print("Specular: {d}", .{mat.has_pbr_specular_glossiness}, .Info, .Verbose, .{ .MeshLoading = true });
                 util.log.print("Unlit: {d}", .{mat.unlit}, .Info, .Verbose, .{ .MeshLoading = true });
 
-                if (mat.has_pbr_metallic_roughness != 0) {
+                if (mat.unlit != 0) {
+                    const metalMat = mat.pbr_metallic_roughness;
+
+                    util.log.info("Factor: {d}", .{
+                        metalMat.roughness_factor,
+                    });
+
+                    if (try loadTexture(metalMat.base_color_texture, 4)) |tex| {
+                        model.baseColor = tex;
+                    } else {
+                        model.baseColor = try stbi.Image.loadFromFile("resources/textures/DefaultColor.png", 4);
+                        util.log.print("Has no base color texture", .{}, .Info, .Verbose, .{ .MeshLoading = true });
+                    }
+                } else if (mat.has_pbr_metallic_roughness != 0) {
                     const metalMat = mat.pbr_metallic_roughness;
 
                     if (try loadTexture(metalMat.base_color_texture, 4)) |tex| {
                         model.baseColor = tex;
                     } else {
+                        model.baseColor = try stbi.Image.loadFromFile("resources/textures/defaultTexture.png", 4);
                         util.log.print("Has no base color texture", .{}, .Info, .Verbose, .{ .MeshLoading = true });
                     }
 
                     if (try loadTexture(metalMat.metallic_roughness_texture, 2)) |tex| {
                         model.metallicRoughness = tex;
                     } else {
+                        model.metallicRoughness = try stbi.Image.loadFromFile("resources/textures/defaultTexture.png", 2);
                         util.log.print("Has no metallic roughness texture", .{}, .Info, .Verbose, .{ .MeshLoading = true });
                     }
 
                     if (try loadTexture(mat.normal_texture, 3)) |tex| {
                         model.normals = tex;
                     } else {
+                        model.normals = try stbi.Image.loadFromFile("resources/textures/defaultTexture.png", 3);
                         util.log.print("Has no normal texture", .{}, .Info, .Verbose, .{ .MeshLoading = true });
                     }
 
@@ -100,7 +115,7 @@ pub fn loadModelFromFile(path: [:0]const u8) !ModelData {
             } else {
                 util.log.print("Has no material", .{}, .Info, .Verbose, .{ .MeshLoading = true });
 
-                model.baseColor = try stbi.Image.loadFromFile("resources/textures/defaultTexture.png", 4);
+                model.baseColor = try stbi.Image.loadFromFile("resources/textures/DefaultColor.png", 4);
                 model.metallicRoughness = try stbi.Image.loadFromFile("resources/textures/defaultTexture.png", 2);
                 model.normals = try stbi.Image.loadFromFile("resources/textures/defaultTexture.png", 3);
                 model.occlusion = try stbi.Image.loadFromFile("resources/textures/defaultTexture.png", 1);
@@ -141,6 +156,8 @@ fn loadVertexData(primitive: gltf.Primitive) ![]Vertex {
         } else if (attrib.type == gltf.AttributeType.texcoord) {
             texCoords = try mem.heap.alloc(f32, vertices.unpackFloatsCount());
             texCoords = vertices.unpackFloats(texCoords.?);
+        } else {
+            unreachable;
         }
     }
 
@@ -151,10 +168,10 @@ fn loadVertexData(primitive: gltf.Primitive) ![]Vertex {
         vertexData = try mem.heap.alloc(Vertex, pos.len);
 
         if (normals == null) {
-            normals = try mem.heap.alloc(f32, pos.len);
+            normals = try mem.heap.alloc(f32, pos.len * 3);
         }
         if (texCoords == null) {
-            texCoords = try mem.heap.alloc(f32, pos.len * 2 / 3);
+            texCoords = try mem.heap.alloc(f32, pos.len * 2);
         }
 
         const norm: [][3]f32 = @as([*][3]f32, @ptrCast(normals.?.ptr))[0 .. normals.?.len / 3];
