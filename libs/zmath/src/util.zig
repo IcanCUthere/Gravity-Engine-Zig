@@ -92,17 +92,17 @@ test "zmath.util.mat.translation" {
 }
 
 test "zmath.util.mat.scale" {
-    const mat = zm.mul(zm.scaling(3, 4, 5), zm.translation(6, 7, 8));
+    const mat = zm.mulV(zm.scaling(3, 4, 5), zm.translation(6, 7, 8));
     const scale = getScaleVec(mat);
     try expect(zm.approxEqAbs(scale, zm.f32x4(3.0, 4.0, 5.0, 0.0), 0.0001));
 }
 
 test "zmath.util.mat.rotation" {
     const rotate_origin = zm.matFromRollPitchYaw(0.1, 1.2, 2.3);
-    const mat = zm.mul(zm.mul(rotate_origin, zm.scaling(3, 4, 5)), zm.translation(6, 7, 8));
+    const mat = zm.mulV(zm.mulV(rotate_origin, zm.scaling(3, 4, 5)), zm.translation(6, 7, 8));
     const rotate_get = getRotationQuat(mat);
-    const v0 = zm.mul(zm.f32x4s(1), rotate_origin);
-    const v1 = zm.mul(zm.f32x4s(1), zm.quatToMat(rotate_get));
+    const v0 = zm.mulV(zm.f32x4s(1), rotate_origin);
+    const v1 = zm.mulV(zm.f32x4s(1), zm.quatToMat(rotate_get));
     try expect(zm.approxEqAbs(v0, v1, 0.0001));
 }
 
@@ -112,7 +112,7 @@ test "zmath.util.mat.z_vec" {
     var z_vec = getAxisZ(identity);
     try expect(zm.approxEqAbs(z_vec, zm.f32x4(0.0, 0.0, 1.0, 0), 0.0001));
     const rot_yaw = zm.rotationY(degToRad(90));
-    identity = zm.mul(identity, rot_yaw);
+    identity = zm.mulV(identity, rot_yaw);
     z_vec = getAxisZ(identity);
     try expect(zm.approxEqAbs(z_vec, zm.f32x4(1.0, 0.0, 0.0, 0), 0.0001));
 }
@@ -123,11 +123,11 @@ test "zmath.util.mat.y_vec" {
     var y_vec = getAxisY(identity);
     try expect(zm.approxEqAbs(y_vec, zm.f32x4(0.0, 1.0, 0.0, 0), 0.01));
     const rot_yaw = zm.rotationY(degToRad(90));
-    identity = zm.mul(identity, rot_yaw);
+    identity = zm.mulV(identity, rot_yaw);
     y_vec = getAxisY(identity);
     try expect(zm.approxEqAbs(y_vec, zm.f32x4(0.0, 1.0, 0.0, 0), 0.01));
     const rot_pitch = zm.rotationX(degToRad(90));
-    identity = zm.mul(identity, rot_pitch);
+    identity = zm.mulV(identity, rot_pitch);
     y_vec = getAxisY(identity);
     try expect(zm.approxEqAbs(y_vec, zm.f32x4(0.0, 0.0, 1.0, 0), 0.01));
 }
@@ -138,11 +138,11 @@ test "zmath.util.mat.right" {
     var right = getAxisX(identity);
     try expect(zm.approxEqAbs(right, zm.f32x4(1.0, 0.0, 0.0, 0), 0.01));
     const rot_yaw = zm.rotationY(degToRad(90));
-    identity = zm.mul(identity, rot_yaw);
+    identity = zm.mulV(identity, rot_yaw);
     right = getAxisX(identity);
     try expect(zm.approxEqAbs(right, zm.f32x4(0.0, 0.0, -1.0, 0), 0.01));
     const rot_pitch = zm.rotationX(degToRad(90));
-    identity = zm.mul(identity, rot_pitch);
+    identity = zm.mulV(identity, rot_pitch);
     right = getAxisX(identity);
     try expect(zm.approxEqAbs(right, zm.f32x4(0.0, 1.0, 0.0, 0), 0.01));
 }

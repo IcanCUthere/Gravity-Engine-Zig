@@ -5,8 +5,6 @@
 // Implemented features:
 //  [X] Renderer: User texture binding. Use 'WGPUTextureView' as ImTextureID. Read the FAQ about ImTextureID!
 //  [X] Renderer: Large meshes support (64k+ vertices) with 16-bit indices.
-// Missing features:
-//  [ ] Renderer: Multi-viewport support (multiple windows). Not meaningful on the web.
 
 // You can use unmodified imgui_impl_* files in your project. See examples/ folder for examples of using this.
 // Prefer including the entire imgui/ repository into your project (either as a copy or as a submodule), and only build the backends you need.
@@ -39,47 +37,13 @@
 
 #include "imgui.h"
 #ifndef IMGUI_DISABLE
-
-// FIX(zig-gamedev):
-//#include "imgui_impl_wgpu.h"
-
+#include "imgui_impl_wgpu.h"
 #include <limits.h>
 #include <webgpu/webgpu.h>
 
 // Dear ImGui prototypes from imgui_internal.h
 extern ImGuiID ImHashData(const void* data_p, size_t data_size, ImU32 seed = 0);
 #define MEMALIGN(_SIZE,_ALIGN)        (((_SIZE) + ((_ALIGN) - 1)) & ~((_ALIGN) - 1))    // Memory align (copied from IM_ALIGN() macro).
-
-// FIX(zig-gamedev): We removed header file and declare all our external functions here.
-extern "C" {
-
-// Initialization data, for ImGui_ImplWGPU_Init()
-struct ImGui_ImplWGPU_InitInfo
-{
-    WGPUDevice              Device;
-    int                     NumFramesInFlight = 3;
-    WGPUTextureFormat       RenderTargetFormat = WGPUTextureFormat_Undefined;
-    WGPUTextureFormat       DepthStencilFormat = WGPUTextureFormat_Undefined;
-    WGPUMultisampleState    PipelineMultisampleState = {};
-
-    ImGui_ImplWGPU_InitInfo()
-    {
-        PipelineMultisampleState.count = 1;
-        PipelineMultisampleState.mask = -1u;
-        PipelineMultisampleState.alphaToCoverageEnabled = false;
-    }
-};
-
-IMGUI_IMPL_API bool ImGui_ImplWGPU_Init(ImGui_ImplWGPU_InitInfo* init_info);
-IMGUI_IMPL_API void ImGui_ImplWGPU_Shutdown();
-IMGUI_IMPL_API void ImGui_ImplWGPU_NewFrame();
-IMGUI_IMPL_API void ImGui_ImplWGPU_RenderDrawData(ImDrawData* draw_data, WGPURenderPassEncoder pass_encoder);
-
-// Use if you want to reset your rendering device without losing Dear ImGui state.
-IMGUI_IMPL_API void ImGui_ImplWGPU_InvalidateDeviceObjects();
-IMGUI_IMPL_API bool ImGui_ImplWGPU_CreateDeviceObjects();
-
-} // extern "C"
 
 // WebGPU data
 struct RenderResources
@@ -760,6 +724,7 @@ void ImGui_ImplWGPU_InvalidateDeviceObjects()
 bool ImGui_ImplWGPU_Init(ImGui_ImplWGPU_InitInfo* init_info)
 {
     ImGuiIO& io = ImGui::GetIO();
+    IMGUI_CHECKVERSION();
     IM_ASSERT(io.BackendRendererUserData == nullptr && "Already initialized a renderer backend!");
 
     // Setup backend capabilities flags
@@ -787,7 +752,7 @@ bool ImGui_ImplWGPU_Init(ImGui_ImplWGPU_InitInfo* init_info)
 
     // Create buffers with a default size (they will later be grown as needed)
     bd->pFrameResources = new FrameResources[bd->numFramesInFlight];
-    for (int i = 0; i < bd->numFramesInFlight; i++)
+    for (unsigned int i = 0; i < bd->numFramesInFlight; i++)
     {
         FrameResources* fr = &bd->pFrameResources[i];
         fr->IndexBuffer = nullptr;

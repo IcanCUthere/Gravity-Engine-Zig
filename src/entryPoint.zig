@@ -1,9 +1,9 @@
-const Application = @import("Application/application.zig").Application;
+const GravityEngine = @import("Engine/GravityEngine.zig").GravityEngine;
 
 pub fn main() !void {
-    try Application.init();
+    try GravityEngine.init();
 
-    try Application.run();
+    try GravityEngine.run();
 
-    try Application.deinit();
+    try GravityEngine.deinit();
 }
