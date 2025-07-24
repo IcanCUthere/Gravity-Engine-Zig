@@ -5,7 +5,7 @@ const settings = @import("_settings.zig");
 
 pub usingnamespace std.mem;
 
-const config = .{
+const config = std.heap.GeneralPurposeAllocatorConfig{
     .enable_memory_limit = true,
     .never_unmap = true,
     .retain_metadata = true,

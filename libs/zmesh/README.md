@@ -1,8 +1,8 @@
 ![image](logo.jpg)
 
-# zmesh v0.10.0 - loading, generating, processing and optimizing triangle meshes
+# [zmesh](https://github.com/zig-gamedev/zmesh)
 
-As an example program please see [procedural mesh (wgpu)](https://github.com/michal-z/zig-gamedev/tree/main/samples/procedural_mesh_wgpu).
+Zig library for loading, generating, processing and optimising triangle meshes.
 
 Under the hood this library uses below C/C++ libraries:
 
@@ -12,14 +12,11 @@ Under the hood this library uses below C/C++ libraries:
 
 All memory allocations go through user-supplied, Zig allocator.
 
+As an example program please see [procedural mesh (wgpu)](https://github.com/michal-z/zig-gamedev/tree/main/samples/procedural_mesh_wgpu).
+
 ## Getting started
 
-Copy `zmesh` to a subdirectory of your project and add the following to your `build.zig.zon` .dependencies:
-```zig
-    .zmesh = .{ .path = "libs/zmesh" },
-```
-
-Then in your `build.zig` add:
+Example `build.zig`:
 ```zig
 pub fn build(b: *std.Build) void {
     const exe = b.addExecutable(.{ ... });
@@ -74,15 +71,15 @@ pub fn main() !void {
     //
     // Load mesh
     //
-    const data = try zmesh.io.parseAndLoadFile(content_dir ++ "cube.gltf");
-    defer zmesh.io.freeData(data);
+    const data = try zmesh.io.zcgltf.parseAndLoadFile(content_dir ++ "cube.gltf");
+    defer zmesh.io.zcgltf.freeData(data);
 
     var mesh_indices = std.ArrayList(u32).init(allocator);
     var mesh_positions = std.ArrayList([3]f32).init(allocator);
     var mesh_normals = std.ArrayList([3]f32).init(allocator);
 
-    zmesh.io.appendMeshPrimitive(
-        data, // *zmesh.io.cgltf.Data
+    zmesh.io.zcgltf.appendMeshPrimitive(
+        data,
         0, // mesh index
         0, // gltf primitive index (submesh index)
         &mesh_indices,

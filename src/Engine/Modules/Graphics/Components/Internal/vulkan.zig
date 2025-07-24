@@ -39,7 +39,7 @@ pub const BufferAllocation = struct {
     allocation: Allocation,
 };
 
-pub inline fn createAllocator(instance: InstProxy, device: DevProxy, physDev: vk.PhysicalDevice, apiVersion: u32, bd: BaseDispatch) !Allocator {
+pub inline fn createAllocator(instance: InstProxy, device: DevProxy, physDev: vk.PhysicalDevice, apiVersion: u32, bd: vk.BaseDispatch) !Allocator {
     var allocator: vma.VmaAllocator = undefined;
 
     const res = vma.vmaCreateAllocator(&.{
@@ -271,10 +271,6 @@ const apis: []const vk.ApiInfo = &.{
         },
     },
 };
-
-pub const BaseDispatch = vk.BaseWrapper(apis);
-pub const InstanceDispatch = vk.InstanceWrapper(apis);
-pub const DeviceDispatch = vk.DeviceWrapper(apis);
 
 pub const InstProxy = vk.InstanceProxy(apis);
 pub const DevProxy = vk.DeviceProxy(apis);

@@ -1,13 +1,10 @@
-# zflecs v0.1.0 - Build package and bindings for [flecs](https://github.com/SanderMertens/flecs) ECS 
+# [zflecs](https://github.com/zig-gamedev/zflecs)
+
+Zig build package and bindings for [flecs](https://github.com/SanderMertens/flecs) ECS v4.0.4
 
 ## Getting started
 
-Copy `zflecs` folder to a subdirectory of your project and add the following to your `build.zig.zon` .dependencies:
-```zig
-    .zflecs = .{ .path = "libs/zflecs" },
-```
-
-Then in your `build.zig` add:
+Example`build.zig`:
 
 ```zig
 pub fn build(b: *std.Build) void {
@@ -40,7 +37,7 @@ fn move_system(positions: []Position, velocities: []const Velocity) void {
 //Optionally, systems can receive the components iterator (usually not necessary)
 fn move_system_with_it(it: *ecs.iter_t, positions: []Position, velocities: []const Velocity) void {
     const type_str = ecs.table_str(it.world, it.table).?;
-    print("Move entities with [{s}]\n", .{type_str});
+    std.debug.print("Move entities with [{s}]\n", .{type_str});
     defer ecs.os.free(type_str);
 
     for (positions, velocities) |*p, v| {

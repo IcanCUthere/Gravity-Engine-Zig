@@ -42,8 +42,8 @@ fn findCppFilesInPath(comptime subPath: []const u8, ext: []const u8) ![][]const 
     const path = @src().file;
     const trimmed = path[0 .. path.len - 9];
 
-    var dir = try std.fs.openDirAbsolute(
-        trimmed ++ subPath,
+    var dir = try std.fs.cwd().openDir(
+        "libs/zshaderc/" ++ trimmed ++ subPath,
         .{
             .iterate = true,
         },

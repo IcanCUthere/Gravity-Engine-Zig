@@ -252,12 +252,7 @@ const tracy_stub = struct {
 };
 
 const tracy_full = struct {
-    const c = @cImport({
-        //@cDefine("TRACY_CALLSTACK", "8"); Uncomment to enable callstacks. "8" is max depth (can be changed).
-        @cDefine("TRACY_ENABLE", "");
-        @cInclude("TracyC.h");
-    });
-
+    const c = @import("c");
     const has_callstack_support = @hasDecl(c, "TRACY_HAS_CALLSTACK") and @hasDecl(c, "TRACY_CALLSTACK");
     const callstack_depth: c_int = if (has_callstack_support) c.TRACY_CALLSTACK else 0;
 
@@ -573,6 +568,7 @@ const tracy_full = struct {
                 .vtable = &.{
                     .alloc = alloc,
                     .resize = resize,
+                    .remap = remap,
                     .free = free,
                 },
             };
@@ -581,11 +577,11 @@ const tracy_full = struct {
         fn alloc(
             ctx: *anyopaque,
             len: usize,
-            log2_ptr_align: u8,
+            alignment: std.mem.Alignment,
             ra: usize,
         ) ?[*]u8 {
             const self: *TracyAllocator = @ptrCast(@alignCast(ctx));
-            const result = self.child_allocator.rawAlloc(len, log2_ptr_align, ra);
+            const result = self.child_allocator.rawAlloc(len, alignment, ra);
             if (result) |addr| {
                 Alloc(addr, len);
             } else {
@@ -599,12 +595,12 @@ const tracy_full = struct {
         fn resize(
             ctx: *anyopaque,
             buf: []u8,
-            log2_ptr_align: u8,
+            alignment: std.mem.Alignment,
             new_len: usize,
             ra: usize,
         ) bool {
             const self: *TracyAllocator = @ptrCast(@alignCast(ctx));
-            const result = self.child_allocator.rawResize(buf, log2_ptr_align, new_len, ra);
+            const result = self.child_allocator.rawResize(buf, alignment, new_len, ra);
             if (result) {
                 Free(buf.ptr);
                 Alloc(buf.ptr, new_len);
@@ -616,14 +612,34 @@ const tracy_full = struct {
             return result;
         }
 
+        fn remap(
+            ctx: *anyopaque,
+            buf: []u8,
+            alignment: std.mem.Alignment,
+            new_len: usize,
+            ra: usize,
+        ) ?[*]u8 {
+            const self: *TracyAllocator = @ptrCast(@alignCast(ctx));
+            const result = self.child_allocator.rawRemap(buf, alignment, new_len, ra);
+            if (result) |data| {
+                Free(buf.ptr);
+                Alloc(data, new_len);
+            } else {
+                var buffer: [128]u8 = undefined;
+                const msg = std.fmt.bufPrint(&buffer, "remap failed requesting {d} -> {d}", .{ buf.len, new_len }) catch return result;
+                Message(msg);
+            }
+            return result;
+        }
+
         fn free(
             ctx: *anyopaque,
             buf: []u8,
-            log2_ptr_align: u8,
+            alignment: std.mem.Alignment,
             ra: usize,
         ) void {
             const self: *TracyAllocator = @ptrCast(@alignCast(ctx));
-            self.child_allocator.rawFree(buf, log2_ptr_align, ra);
+            self.child_allocator.rawFree(buf, alignment, ra);
             Free(buf.ptr);
         }
     };

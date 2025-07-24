@@ -29,7 +29,7 @@ const required_device_extensions = [_][*:0]const u8{
 pub fn init() !void {
     const extensions = try glfw.getRequiredInstanceExtensions();
 
-    baseDispatch = try vk.BaseDispatch.load(vk.glfwGetInstanceProcAddress);
+    baseDispatch = try vk.BaseWrapper.load(vk.glfwGetInstanceProcAddress);
 
     instance.handle = try baseDispatch.createInstance(&.{
         .p_application_info = &.{

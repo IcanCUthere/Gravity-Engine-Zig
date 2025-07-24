@@ -55,7 +55,7 @@ pub fn StableArray(comptime T: type) type {
             }
         }
 
-        pub fn remove(self: *Self, id: DataId) !T {
+        pub fn remove(self: *Self, id: DataId) !?T {
             if (id == self.data.items.len - 1) {
                 const removed = self.data.pop();
 
