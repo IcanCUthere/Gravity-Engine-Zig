@@ -33,26 +33,26 @@ pub const Model = struct {
         flecs.add(scene, Prefab, Texture);
 
         var setObsDesc = flecs.observer_desc_t{
-            .filter = flecs.filter_desc_t{
+            .query = flecs.query_desc_t{
                 .terms = [1]flecs.term_t{
                     flecs.term_t{
                         .id = flecs.id(Self),
                     },
-                } ++ ([1]flecs.term_t{.{}} ** 15),
+                } ++ ([1]flecs.term_t{.{}} ** 31),
             },
             .events = [_]u64{flecs.OnSet} ++ ([1]u64{0} ** 7),
             .callback = flecs.SystemImpl(onEvent).exec,
         };
 
-        flecs.OBSERVER(scene, "ModelComponentEvent", &setObsDesc);
+        _ = flecs.OBSERVER(scene, "ModelComponentEvent", &setObsDesc);
     }
 
-    fn onEvent(it: *flecs.iter_t, models: []Model) void {
+    fn onEvent(it: *flecs.iter_t, models: []Model) !void {
         const event: flecs.entity_t = it.event;
 
         for (models) |*m| {
             if (event == flecs.OnRemove) {
-                m.deinit();
+                try m.deinit();
             }
         }
     }
@@ -95,8 +95,13 @@ pub const Model = struct {
             gfx.vkAllocator,
             &gfx.BufferCreateInfo{
                 .size = vertexData.len,
-                .usage = gfx.BufferUsageFlags{ .vertex_buffer_bit = true, .transfer_dst_bit = true },
-                .sharing_mode = gfx.SharingMode.exclusive,
+                .usage = gfx.toFlags(&[_]gfx.BufferUsageFlagBits{
+                    .VertexBufferBit,
+                    .TransferDstBit,
+                }),
+                .sharingMode = gfx.SharingMode.Exclusive,
+                .queueFamilyIndexCount = 0,
+                .pQueueFamilyIndices = null,
             },
             &gfx.vma.VmaAllocationCreateInfo{
                 .usage = gfx.vma.VMA_MEMORY_USAGE_GPU_ONLY,
@@ -107,8 +112,13 @@ pub const Model = struct {
             gfx.vkAllocator,
             &gfx.BufferCreateInfo{
                 .size = indexData.len,
-                .usage = gfx.BufferUsageFlags{ .index_buffer_bit = true, .transfer_dst_bit = true },
-                .sharing_mode = gfx.SharingMode.exclusive,
+                .usage = gfx.toFlags(&[_]gfx.BufferUsageFlagBits{
+                    .IndexBufferBit,
+                    .TransferDstBit,
+                }),
+                .sharingMode = gfx.SharingMode.Exclusive,
+                .queueFamilyIndexCount = 0,
+                .pQueueFamilyIndices = null,
             },
             &gfx.vma.VmaAllocationCreateInfo{
                 .usage = gfx.vma.VMA_MEMORY_USAGE_GPU_ONLY,
@@ -119,20 +129,20 @@ pub const Model = struct {
             .data = vertexData,
             .dstBuffer = self.vertexBuffer,
             .bufferToBuffer = gfx.BufferCopy{
-                .src_offset = undefined,
-                .dst_offset = 0,
+                .srcOffset = undefined,
+                .dstOffset = 0,
                 .size = vertexData.len,
             },
             .postBarrier = Renderer.PipelineBarrierData{
-                .firstUseStages = gfx.PipelineStageFlags{ .vertex_input_bit = true },
+                .firstUseStages = gfx.toFlags(&[_]gfx.PipelineStageFlagBits{.VertexInputBit}),
                 .postBufferBarrier = gfx.BufferMemoryBarrier{
                     .buffer = self.vertexBuffer.buffer,
                     .offset = 0,
                     .size = vertexData.len,
-                    .src_access_mask = gfx.AccessFlags{ .memory_write_bit = true },
-                    .dst_access_mask = gfx.AccessFlags{ .memory_read_bit = true },
-                    .dst_queue_family_index = gfx.QUEUE_FAMILY_IGNORED,
-                    .src_queue_family_index = gfx.QUEUE_FAMILY_IGNORED,
+                    .srcAccessMask = gfx.toFlags(&[_]gfx.AccessFlagBits{.MemoryWriteBit}),
+                    .dstAccessMask = gfx.toFlags(&[_]gfx.AccessFlagBits{.MemoryReadBit}),
+                    .dstQueueFamilyIndex = gfx.queueFamilyIgnored,
+                    .srcQueueFamilyIndex = gfx.queueFamilyIgnored,
                 },
             },
         });
@@ -141,51 +151,55 @@ pub const Model = struct {
             .data = indexData,
             .dstBuffer = self.indexBuffer,
             .bufferToBuffer = gfx.BufferCopy{
-                .src_offset = undefined,
-                .dst_offset = 0,
+                .srcOffset = undefined,
+                .dstOffset = 0,
                 .size = indexData.len,
             },
             .postBarrier = Renderer.PipelineBarrierData{
-                .firstUseStages = gfx.PipelineStageFlags{ .vertex_input_bit = true },
+                .firstUseStages = gfx.toFlags(&[_]gfx.PipelineStageFlagBits{.VertexInputBit}),
                 .postBufferBarrier = gfx.BufferMemoryBarrier{
                     .buffer = self.indexBuffer.buffer,
                     .offset = 0,
                     .size = indexData.len,
-                    .src_access_mask = gfx.AccessFlags{ .memory_write_bit = true },
-                    .dst_access_mask = gfx.AccessFlags{ .memory_read_bit = true },
-                    .dst_queue_family_index = gfx.QUEUE_FAMILY_IGNORED,
-                    .src_queue_family_index = gfx.QUEUE_FAMILY_IGNORED,
+                    .srcAccessMask = gfx.toFlags(&[_]gfx.AccessFlagBits{.MemoryWriteBit}),
+                    .dstAccessMask = gfx.toFlags(&[_]gfx.AccessFlagBits{.MemoryReadBit}),
+                    .dstQueueFamilyIndex = gfx.queueFamilyIgnored,
+                    .srcQueueFamilyIndex = gfx.queueFamilyIgnored,
                 },
             },
         });
 
-        try gfx.device.allocateDescriptorSets(&gfx.DescriptorSetAllocateInfo{
-            .descriptor_pool = material.modelDescriptorPool,
-            .p_set_layouts = @ptrCast(&material.modelDescriptorSetLayout),
-            .descriptor_set_count = 1,
+        try gfx.AllocateDescriptorSets(&gfx.DescriptorSetAllocateInfo{
+            .descriptorPool = material.modelDescriptorPool,
+            .pSetLayouts = @ptrCast(&material.modelDescriptorSetLayout),
+            .descriptorSetCount = 1,
         }, @ptrCast(&self.descriptorSet));
 
-        try Renderer.addDescriptorUpdate(gfx.WriteDescriptorSet{
-            .dst_set = self.descriptorSet,
-            .dst_array_element = 0,
-            .dst_binding = 0,
-            .descriptor_count = 1,
-            .descriptor_type = .combined_image_sampler,
-            .p_buffer_info = undefined,
-            .p_image_info = &[_]gfx.DescriptorImageInfo{
-                gfx.DescriptorImageInfo{
-                    .image_layout = .shader_read_only_optimal,
-                    .image_view = texture.imageView,
-                    .sampler = texture.sampler,
+        try Renderer.addDescriptorUpdate(
+            gfx.WriteDescriptorSet{
+                .dstSet = self.descriptorSet,
+                .dstArrayElement = 0,
+                .dstBinding = 0,
+                .descriptorCount = 1,
+                .descriptorType = .CombinedImageSampler,
+                .pBufferInfo = undefined,
+                .pImageInfo = &[_]gfx.DescriptorImageInfo{
+                    gfx.DescriptorImageInfo{
+                        .imageLayout = .ShaderReadOnlyOptimal,
+                        .imageView = texture.imageView,
+                        .sampler = texture.sampler,
+                    },
                 },
+                .pTexelBufferView = undefined,
             },
-            .p_texel_buffer_view = undefined,
-        }, false, true);
+            false,
+            true,
+        );
 
         return self;
     }
 
-    pub fn deinit(self: *Self) void {
+    pub fn deinit(self: *Self) !void {
         const tracy_zone = tracy.ZoneNC(@src(), "Deinit model", 0x00_ff_ff_00);
         defer tracy_zone.End();
 

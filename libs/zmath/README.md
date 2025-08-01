@@ -1,4 +1,6 @@
-# zmath v0.10.0 - SIMD math library for game developers
+# [zmath](https://github.com/zig-gamedev/zmath)
+
+SIMD math library for game developers
 
 Tested on x86_64 and AArch64.
 
@@ -6,20 +8,20 @@ Provides ~140 optimized routines and ~70 extensive tests.
 
 Can be used with any graphics API.
 
-Documentation can be found [here](https://github.com/michal-z/zig-gamedev/blob/main/libs/zmath/src/zmath.zig).
+Documentation can be found [here](https://github.com/zig-gamedev/zmath/blob/main/src/zmath.zig).
 
-Benchamrks can be found [here](https://github.com/michal-z/zig-gamedev/blob/main/libs/zmath/src/benchmark.zig).
+Benchamrks can be found [here](https://github.com/zig-gamedev/zmath/blob/main/src/benchmark.zig).
 
 An intro article can be found [here](https://zig.news/michalz/fast-multi-platform-simd-math-library-in-zig-2adn).
 
 ## Getting started
 
-Copy `zmath` into a subdirectory of your project and add the following to your `build.zig.zon` .dependencies:
-```zig
-    .zmath = .{ .path = "libs/zmath" },
-```
+How to get dependencies
 
-Then in your `build.zig` add:
+1. specific version: `zig fetch --save https://github.com/zig-gamedev/zmath/archive/refs/tags/<REPLACE ME>.tar.gz`
+2. main branch version: `zig fetch --save git+https://github.com/zig-gamedev/zmath.git`
+
+Example `build.zig`
 
 ```zig
 pub fn build(b: *std.Build) void {

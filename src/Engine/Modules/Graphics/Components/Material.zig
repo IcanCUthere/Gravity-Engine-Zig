@@ -133,96 +133,108 @@ pub const Material = struct {
         const vertexCode = try shaders.getOrAdd(vertexShaderPath);
         const fragmentCode = try shaders.getOrAdd(fragmentShaderPath);
 
-        self.vertexModule = try gfx.device.createShaderModule(&gfx.ShaderModuleCreateInfo{
-            .code_size = vertexCode.len,
-            .p_code = @ptrCast(@alignCast(vertexCode.ptr)),
-        }, null);
+        self.vertexModule = try gfx.CreateShaderModule(&gfx.ShaderModuleCreateInfo{
+            .codeSize = vertexCode.len,
+            .pCode = @ptrCast(@alignCast(vertexCode.ptr)),
+        });
 
-        self.fragmentModule = try gfx.device.createShaderModule(&gfx.ShaderModuleCreateInfo{
-            .code_size = fragmentCode.len,
-            .p_code = @ptrCast(@alignCast(fragmentCode.ptr)),
-        }, null);
+        self.fragmentModule = try gfx.CreateShaderModule(&gfx.ShaderModuleCreateInfo{
+            .codeSize = fragmentCode.len,
+            .pCode = @ptrCast(@alignCast(fragmentCode.ptr)),
+        });
 
         const globalPoolSizes = [_]gfx.DescriptorPoolSize{
             gfx.DescriptorPoolSize{
-                .type = .combined_image_sampler,
-                .descriptor_count = 1,
+                .type = .CombinedImageSampler,
+                .descriptorCount = 1,
             },
         };
 
         const globalDescriptorBindings = [_]gfx.DescriptorSetLayoutBinding{
             gfx.DescriptorSetLayoutBinding{
                 .binding = 0,
-                .descriptor_type = gfx.DescriptorType.uniform_buffer,
-                .descriptor_count = 1,
-                .stage_flags = gfx.ShaderStageFlags{ .vertex_bit = true },
+                .descriptorType = gfx.DescriptorType.UniformBuffer,
+                .descriptorCount = 1,
+                .stageFlags = gfx.toFlags(&[_]gfx.ShaderStageFlagBits{.VertexBit}),
             },
         };
 
-        self.materialDescriptorSetLayout = try gfx.device.createDescriptorSetLayout(&gfx.DescriptorSetLayoutCreateInfo{
-            .p_bindings = &globalDescriptorBindings,
-            .binding_count = @intCast(globalDescriptorBindings.len),
-        }, null);
+        self.materialDescriptorSetLayout = try gfx.CreateDescriptorSetLayout(
+            &gfx.DescriptorSetLayoutCreateInfo{
+                .pBindings = &globalDescriptorBindings,
+                .bindingCount = @intCast(globalDescriptorBindings.len),
+            },
+        );
 
-        self.materialDescriptorPool = try gfx.device.createDescriptorPool(&gfx.DescriptorPoolCreateInfo{
-            .p_pool_sizes = &globalPoolSizes,
-            .pool_size_count = @intCast(globalPoolSizes.len),
-            .max_sets = 1,
-        }, null);
+        self.materialDescriptorPool = try gfx.CreateDescriptorPool(
+            &gfx.DescriptorPoolCreateInfo{
+                .pPoolSizes = &globalPoolSizes,
+                .poolSizeCount = @intCast(globalPoolSizes.len),
+                .maxSets = 1,
+            },
+        );
 
         const modelPoolSizes = [_]gfx.DescriptorPoolSize{
             gfx.DescriptorPoolSize{
-                .type = .uniform_buffer,
-                .descriptor_count = 10,
+                .type = .UniformBuffer,
+                .descriptorCount = 10,
             },
         };
 
-        self.modelDescriptorPool = try gfx.device.createDescriptorPool(&gfx.DescriptorPoolCreateInfo{
-            .p_pool_sizes = &modelPoolSizes,
-            .pool_size_count = @intCast(modelPoolSizes.len),
-            .max_sets = 10,
-        }, null);
+        self.modelDescriptorPool = try gfx.CreateDescriptorPool(
+            &gfx.DescriptorPoolCreateInfo{
+                .pPoolSizes = &modelPoolSizes,
+                .poolSizeCount = @intCast(modelPoolSizes.len),
+                .maxSets = 10,
+            },
+        );
 
         const modelDescriptorBindings = [_]gfx.DescriptorSetLayoutBinding{
             gfx.DescriptorSetLayoutBinding{
                 .binding = 0,
-                .descriptor_type = gfx.DescriptorType.combined_image_sampler,
-                .descriptor_count = 1,
-                .stage_flags = gfx.ShaderStageFlags{ .fragment_bit = true },
+                .descriptorType = gfx.DescriptorType.CombinedImageSampler,
+                .descriptorCount = 1,
+                .stageFlags = gfx.toFlags(&[_]gfx.ShaderStageFlagBits{.FragmentBit}),
             },
         };
 
-        self.modelDescriptorSetLayout = try gfx.device.createDescriptorSetLayout(&gfx.DescriptorSetLayoutCreateInfo{
-            .p_bindings = &modelDescriptorBindings,
-            .binding_count = @intCast(modelDescriptorBindings.len),
-        }, null);
+        self.modelDescriptorSetLayout = try gfx.CreateDescriptorSetLayout(
+            &gfx.DescriptorSetLayoutCreateInfo{
+                .pBindings = &modelDescriptorBindings,
+                .bindingCount = @intCast(modelDescriptorBindings.len),
+            },
+        );
 
         const instancePoolSizes = [_]gfx.DescriptorPoolSize{
             gfx.DescriptorPoolSize{
-                .type = .uniform_buffer,
-                .descriptor_count = 1000,
+                .type = .UniformBuffer,
+                .descriptorCount = 1000,
             },
         };
 
-        self.instanceDescriptorPool = try gfx.device.createDescriptorPool(&gfx.DescriptorPoolCreateInfo{
-            .p_pool_sizes = &instancePoolSizes,
-            .pool_size_count = @intCast(instancePoolSizes.len),
-            .max_sets = 1000,
-        }, null);
+        self.instanceDescriptorPool = try gfx.CreateDescriptorPool(
+            &gfx.DescriptorPoolCreateInfo{
+                .pPoolSizes = &instancePoolSizes,
+                .poolSizeCount = @intCast(instancePoolSizes.len),
+                .maxSets = 1000,
+            },
+        );
 
         const instanceDescriptorBindings = [_]gfx.DescriptorSetLayoutBinding{
             gfx.DescriptorSetLayoutBinding{
                 .binding = 0,
-                .descriptor_type = gfx.DescriptorType.uniform_buffer,
-                .descriptor_count = 1,
-                .stage_flags = gfx.ShaderStageFlags{ .vertex_bit = true },
+                .descriptorType = gfx.DescriptorType.UniformBuffer,
+                .descriptorCount = 1,
+                .stageFlags = gfx.toFlags(&[_]gfx.ShaderStageFlagBits{.VertexBit}),
             },
         };
 
-        self.instanceDescriptorSetLayout = try gfx.device.createDescriptorSetLayout(&gfx.DescriptorSetLayoutCreateInfo{
-            .p_bindings = &instanceDescriptorBindings,
-            .binding_count = @intCast(instanceDescriptorBindings.len),
-        }, null);
+        self.instanceDescriptorSetLayout = try gfx.CreateDescriptorSetLayout(
+            &gfx.DescriptorSetLayoutCreateInfo{
+                .pBindings = &instanceDescriptorBindings,
+                .bindingCount = @intCast(instanceDescriptorBindings.len),
+            },
+        );
 
         const setLayouts = [_]gfx.DescriptorSetLayout{
             Renderer.globalDescriptorSetLayout,
@@ -231,20 +243,23 @@ pub const Material = struct {
             self.instanceDescriptorSetLayout,
         };
 
-        self.pipelineLayout = try gfx.device.createPipelineLayout(&gfx.PipelineLayoutCreateInfo{
-            .p_set_layouts = @ptrCast(&setLayouts),
-            .set_layout_count = @intCast(setLayouts.len),
-            .p_push_constant_ranges = null,
-            .push_constant_range_count = 0,
-        }, null);
+        self.pipelineLayout = try gfx.CreatePipelineLayout(
+            &gfx.PipelineLayoutCreateInfo{
+                .pSetLayouts = @ptrCast(&setLayouts),
+                .setLayoutCount = @intCast(setLayouts.len),
+                .pPushConstantRanges = null,
+                .pushConstantRangeCount = 0,
+            },
+        );
 
         var cacheData = try shaders.getPipelineCache(name, vertexShaderPath, fragmentShaderPath, null, null, null);
 
-        const cache = try gfx.device.createPipelineCache(&gfx.PipelineCacheCreateInfo{
-            .initial_data_size = if (cacheData) |data| data.len else 0,
-            .p_initial_data = if (cacheData) |data| data.ptr else null,
-        }, null);
-        defer gfx.device.destroyPipelineCache(cache, null);
+        const cache = try gfx.CreatePipelineCache(
+            &gfx.PipelineCacheCreateInfo{
+                .initialDataSize = if (cacheData) |data| data.len else 0,
+                .pInitialData = if (cacheData) |data| data.ptr else null,
+            },
+        );
 
         self.pipeline = try gfx.createPipeline(
             cache,
@@ -256,7 +271,7 @@ pub const Material = struct {
                 gfx.VertexInputBindingDescription{
                     .binding = 0,
                     .stride = 32,
-                    .input_rate = gfx.VertexInputRate.vertex,
+                    .inputRate = gfx.VertexInputRate.Vertex,
                 },
             },
             &[_]gfx.VertexInputAttributeDescription{
@@ -264,19 +279,19 @@ pub const Material = struct {
                     .binding = 0,
                     .location = 0,
                     .offset = 0,
-                    .format = gfx.Format.r32g32b32_sfloat,
+                    .format = gfx.Format.R32g32b32Sfloat,
                 },
                 gfx.VertexInputAttributeDescription{
                     .binding = 0,
                     .location = 1,
                     .offset = 12,
-                    .format = gfx.Format.r32g32b32_sfloat,
+                    .format = gfx.Format.R32g32b32Sfloat,
                 },
                 gfx.VertexInputAttributeDescription{
                     .binding = 0,
                     .location = 2,
                     .offset = 24,
-                    .format = gfx.Format.r32g32_sfloat,
+                    .format = gfx.Format.R32g32Sfloat,
                 },
             },
             true,
@@ -284,54 +299,54 @@ pub const Material = struct {
         );
 
         if (cacheData == null) {
-            var dataSize: usize = undefined;
-            _ = try gfx.device.getPipelineCacheData(cache, &dataSize, null);
-            cacheData = try util.mem.heap.alloc(u8, dataSize);
+            cacheData = try gfx.GetPipelineCacheData(cache, mem.heap);
             defer util.mem.heap.free(cacheData.?);
-            _ = try gfx.device.getPipelineCacheData(cache, &dataSize, @ptrCast(@constCast(cacheData.?.ptr)));
 
             try shaders.addPipelineCache(name, cacheData.?, vertexShaderPath, fragmentShaderPath, null, null, null);
         }
 
-        try gfx.device.allocateDescriptorSets(&gfx.DescriptorSetAllocateInfo{
-            .descriptor_pool = self.materialDescriptorPool,
-            .p_set_layouts = @ptrCast(&self.materialDescriptorSetLayout),
-            .descriptor_set_count = 1,
+        try gfx.AllocateDescriptorSets(&gfx.DescriptorSetAllocateInfo{
+            .descriptorPool = self.materialDescriptorPool,
+            .pSetLayouts = @ptrCast(&self.materialDescriptorSetLayout),
+            .descriptorSetCount = 1,
         }, @ptrCast(&self.descriptorSet));
 
         self.materialUniforms = try gfx.createBuffer(
             gfx.vkAllocator,
             &gfx.BufferCreateInfo{
-                .size = 2 * @sizeOf(util.math.Mat),
-                .usage = gfx.BufferUsageFlags{ .uniform_buffer_bit = true },
-                .sharing_mode = gfx.SharingMode.exclusive,
+                .size = 2 * @sizeOf(util.math.simd.Mat),
+                .usage = gfx.toFlags(&[_]gfx.BufferUsageFlagBits{.UniformBufferBit}),
+                .sharingMode = gfx.SharingMode.Exclusive,
+                .pQueueFamilyIndices = null,
             },
             &gfx.vma.VmaAllocationCreateInfo{
                 .usage = gfx.vma.VMA_MEMORY_USAGE_CPU_ONLY,
             },
         );
 
+        try gfx.DestroyPipelineCache(cache);
+
         return self;
     }
 
-    pub fn deinit(self: *Self) void {
+    pub fn deinit(self: *Self) !void {
         const tracy_zone = tracy.ZoneNC(@src(), "Deinit material", 0x00_ff_ff_00);
         defer tracy_zone.End();
 
-        gfx.device.destroyPipeline(self.pipeline, null);
-        gfx.device.destroyPipelineLayout(self.pipelineLayout, null);
+        try gfx.DestroyPipeline(self.pipeline);
+        try gfx.DestroyPipelineLayout(self.pipelineLayout);
 
-        gfx.device.destroyDescriptorSetLayout(self.materialDescriptorSetLayout, null);
-        gfx.device.destroyDescriptorPool(self.materialDescriptorPool, null);
+        try gfx.DestroyDescriptorSetLayout(self.materialDescriptorSetLayout);
+        try gfx.DestroyDescriptorPool(self.materialDescriptorPool);
 
-        gfx.device.destroyDescriptorSetLayout(self.modelDescriptorSetLayout, null);
-        gfx.device.destroyDescriptorPool(self.modelDescriptorPool, null);
+        try gfx.DestroyDescriptorSetLayout(self.modelDescriptorSetLayout);
+        try gfx.DestroyDescriptorPool(self.modelDescriptorPool);
 
-        gfx.device.destroyDescriptorSetLayout(self.instanceDescriptorSetLayout, null);
-        gfx.device.destroyDescriptorPool(self.instanceDescriptorPool, null);
+        try gfx.DestroyDescriptorSetLayout(self.instanceDescriptorSetLayout);
+        try gfx.DestroyDescriptorPool(self.instanceDescriptorPool);
 
-        gfx.device.destroyShaderModule(self.vertexModule, null);
-        gfx.device.destroyShaderModule(self.fragmentModule, null);
+        try gfx.DestroyShaderModule(self.vertexModule);
+        try gfx.DestroyShaderModule(self.fragmentModule);
 
         gfx.destroyBuffer(gfx.vkAllocator, self.materialUniforms);
     }

@@ -211,7 +211,7 @@ fn loadTexture(texture: gltf.TextureView, components: u32) !?stbi.Image {
     if (texture.texture) |tex| {
         if (tex.image) |img| {
             if (img.buffer_view) |buf| {
-                if (gltf.BufferView.data(buf.*)) |data| {
+                if (gltf.BufferView.getData(buf.*)) |data| {
                     if (img.mime_type) |mime| {
                         if (mem.eql(u8, mime[0..9], "image/png") or
                             mem.eql(u8, mime[0..10], "image/jpeg"))

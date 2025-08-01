@@ -51,33 +51,39 @@ pub const Editor = struct {
 
         const guiPoolSizes = [_]gfx.DescriptorPoolSize{
             gfx.DescriptorPoolSize{
-                .type = .combined_image_sampler,
-                .descriptor_count = 1,
+                .type = .CombinedImageSampler,
+                .descriptorCount = 1,
             },
         };
 
-        guiDescriptorPool = try gfx.device.createDescriptorPool(&gfx.DescriptorPoolCreateInfo{
-            .p_pool_sizes = &guiPoolSizes,
-            .pool_size_count = @intCast(guiPoolSizes.len),
-            .max_sets = 1,
-        }, null);
+        guiDescriptorPool = try gfx.CreateDescriptorPool(
+            &gfx.DescriptorPoolCreateInfo{
+                .pPoolSizes = &guiPoolSizes,
+                .poolSizeCount = @intCast(guiPoolSizes.len),
+                .maxSets = 1,
+            },
+        );
 
         const vertexCode = try graphics.shaders.getOrAdd("resources/shaders/id/id.vert");
-        vertexModule = try gfx.device.createShaderModule(&gfx.ShaderModuleCreateInfo{
-            .code_size = vertexCode.len,
-            .p_code = @ptrCast(@alignCast(vertexCode.ptr)),
-        }, null);
+        vertexModule = try gfx.CreateShaderModule(
+            &gfx.ShaderModuleCreateInfo{
+                .codeSize = vertexCode.len,
+                .pCode = @ptrCast(@alignCast(vertexCode.ptr)),
+            },
+        );
 
         const fragmentCode = try graphics.shaders.getOrAdd("resources/shaders/id/id.frag");
-        fragmentModule = try gfx.device.createShaderModule(&gfx.ShaderModuleCreateInfo{
-            .code_size = fragmentCode.len,
-            .p_code = @ptrCast(@alignCast(fragmentCode.ptr)),
-        }, null);
+        fragmentModule = try gfx.CreateShaderModule(
+            &gfx.ShaderModuleCreateInfo{
+                .codeSize = fragmentCode.len,
+                .pCode = @ptrCast(@alignCast(fragmentCode.ptr)),
+            },
+        );
 
         renderPass = try createRenderPass();
         pipelineLayout = try createPipelineLayout();
         idPipeline = try gfx.createPipeline(
-            .null_handle,
+            null,
             pipelineLayout,
             renderPass,
             vertexModule,
@@ -86,7 +92,7 @@ pub const Editor = struct {
                 gfx.VertexInputBindingDescription{
                     .binding = 0,
                     .stride = 32,
-                    .input_rate = gfx.VertexInputRate.vertex,
+                    .inputRate = gfx.VertexInputRate.Vertex,
                 },
             },
             &[_]gfx.VertexInputAttributeDescription{
@@ -94,7 +100,7 @@ pub const Editor = struct {
                     .binding = 0,
                     .location = 0,
                     .offset = 0,
-                    .format = gfx.Format.r32g32b32_sfloat,
+                    .format = gfx.Format.R32g32b32Sfloat,
                 },
             },
             true,
@@ -111,39 +117,42 @@ pub const Editor = struct {
 
         _ = gui.backend.loadFunctions(
             loader,
-            @ptrFromInt(@as(usize, @intFromEnum(gfx.instance.handle))),
+            gfx.gInstance,
         );
 
-        gui.backend.init(viewport.getWindow(), &gui.backend.VulkanInitInfo{
-            .instance = @ptrFromInt(@intFromEnum(gfx.instance.handle)),
-            .physical_device = @ptrFromInt(@intFromEnum(gfx.physicalDevice)),
-            .device = @ptrFromInt(@intFromEnum(gfx.device.handle)),
-            .queueFamily = gfx.renderFamily,
-            .queue = @ptrFromInt(@intFromEnum(gfx.renderQueue)),
-            .renderPass = @ptrFromInt(@intFromEnum(graphics.Renderer._renderPass)),
-            .descriptorPool = @ptrFromInt(@intFromEnum(guiDescriptorPool)),
-            .minImageCount = 2,
-            .imageCount = 3,
-        });
+        gui.backend.init(
+            gui.backend.ImGui_ImplVulkan_InitInfo{
+                .instance = gfx.gInstance,
+                .physical_device = gfx.physicalDevice,
+                .device = gfx.gDevice,
+                .queue_family = gfx.renderFamily,
+                .queue = gfx.renderQueue,
+                .render_pass = graphics.Renderer._renderPass,
+                .descriptor_pool = guiDescriptorPool,
+                .min_image_count = 2,
+                .image_count = 3,
+            },
+            viewport.getWindow(),
+        );
 
-        const rubikFont = gui.io.addFontFromFile("resources/Rubik/static/Rubik-Light.ttf", 36);
-        gui.io.setDefaultFont(rubikFont);
+        //const rubikFont = gui.io.addFontFromFile("resources/Rubik/static/Rubik-Light.ttf", 36);
+        //gui.io.setDefaultFont(rubikFont);
 
-        const style = gui.getStyle();
-        gui.Style.scaleAllSizes(style, 2);
+        //const style = gui.getStyle();
+        //gui.Style.scaleAllSizes(style, 2);
 
         inline for (components) |comp| {
             comp.register(scene);
         }
 
-        flecs.ADD_SYSTEM(_scene, "Editor onEvent", flecs.PostLoad, onEvent);
+        _ = flecs.ADD_SYSTEM(_scene, "Editor onEvent", flecs.PostLoad, onEvent);
 
-        flecs.ADD_SYSTEM(_scene, "Update selected ID", flecs.PreUpdate, updateSelectedID);
+        _ = flecs.ADD_SYSTEM(_scene, "Update selected ID", flecs.PreUpdate, updateSelectedID);
 
-        flecs.ADD_SYSTEM(_scene, "Start Render IDs", flecs.OnStore, startRenderIDs);
-        flecs.ADD_SYSTEM(scene, "Render IDs", flecs.OnStore, renderIDs);
-        flecs.ADD_SYSTEM(_scene, "Stop render IDs", flecs.OnStore, stopRenderIDs);
-        flecs.ADD_SYSTEM(_scene, "Gui new frame", flecs.OnStore, guiNextFrame);
+        _ = flecs.ADD_SYSTEM(_scene, "Start Render IDs", flecs.OnStore, startRenderIDs);
+        _ = flecs.ADD_SYSTEM(scene, "Render IDs", flecs.OnStore, renderIDs);
+        _ = flecs.ADD_SYSTEM(_scene, "Stop render IDs", flecs.OnStore, stopRenderIDs);
+        _ = flecs.ADD_SYSTEM(_scene, "Gui new frame", flecs.OnStore, guiNextFrame);
 
         //const gizmoMat = try graphics.Material.new(
         //    "GizmoMat",
@@ -177,30 +186,30 @@ pub const Editor = struct {
         gui.backend.deinit();
         gui.deinit();
 
-        gfx.device.destroyDescriptorPool(guiDescriptorPool, null);
+        try gfx.DestroyDescriptorPool(guiDescriptorPool);
 
-        gfx.device.destroyRenderPass(renderPass, null);
+        try gfx.DestroyRenderPass(renderPass);
 
-        destroyReadBackData();
+        try destroyReadBackData();
 
-        gfx.device.destroyPipeline(idPipeline, null);
-        gfx.device.destroyPipelineLayout(pipelineLayout, null);
-        gfx.device.destroyDescriptorSetLayout(instanceTransformLayout, null);
-        gfx.device.destroyShaderModule(vertexModule, null);
-        gfx.device.destroyShaderModule(fragmentModule, null);
+        try gfx.DestroyPipeline(idPipeline);
+        try gfx.DestroyPipelineLayout(pipelineLayout);
+        try gfx.DestroyDescriptorSetLayout(instanceTransformLayout);
+        try gfx.DestroyShaderModule(vertexModule);
+        try gfx.DestroyShaderModule(fragmentModule);
     }
 
-    pub fn onEvent(it: *flecs.iter_t) void {
+    pub fn onEvent(it: *flecs.iter_t) !void {
         const input = graphics.InputState;
 
         const viewport = flecs.get(it.world, graphics.Graphics.mainViewport, graphics.Viewport).?;
 
         if (input.getKeyState(.F1).isPress and !inEditor) {
             inEditor = true;
-            viewport.setCursorEnabled(true);
+            try viewport.setCursorEnabled(true);
         } else if (input.getKeyState(.F1).isPress and inEditor) {
             inEditor = false;
-            viewport.setCursorEnabled(false);
+            try viewport.setCursorEnabled(false);
         }
 
         if (inEditor) {
@@ -211,8 +220,8 @@ pub const Editor = struct {
         input.clearKey(.F1);
     }
 
-    fn loader(n: [*:0]const u8, handle: *const anyopaque) ?*const anyopaque {
-        return @ptrCast(gfx.baseDispatch.dispatch.vkGetInstanceProcAddr(@enumFromInt(@intFromPtr(handle)), n).?);
+    fn loader(fnName: [*:0]const u8, handle: ?*anyopaque) callconv(.c) ?*anyopaque {
+        return @constCast(@ptrCast(gfx.vkGetInstanceProcAddr.?(@ptrCast(handle), fnName).?));
     }
 
     fn entitySelected() bool {
@@ -344,10 +353,10 @@ pub const Editor = struct {
             _ = flecs.set(_scene, selectedEntity, core.Transform, transform);
         }
 
-        gui.backend.draw(@ptrFromInt(@intFromEnum(graphics.Renderer.getCurrentCmdList())));
+        gui.backend.render(graphics.Renderer.getCurrentCmdList());
 
-        gui.UpdatePlatformWindows();
-        gui.RenderPlatformWindowsDefault();
+        gui.updatePlatformWindows();
+        gui.renderPlatformWindowsDefault();
     }
 
     pub fn updateSelectedID(_: *flecs.iter_t) !void {
@@ -380,7 +389,7 @@ pub const Editor = struct {
 
     pub fn startRenderIDs(_: *flecs.iter_t) !void {
         if (graphics.InputState.deltaViewportX != 0 or graphics.InputState.deltaViewportY != 0) {
-            destroyReadBackData();
+            try destroyReadBackData();
             try createReadBackData(graphics.InputState.viewportX, graphics.InputState.viewportY);
         }
 
@@ -393,17 +402,31 @@ pub const Editor = struct {
         };
 
         const clearValues = [_]gfx.ClearValue{
-            gfx.ClearValue{ .color = .{ .uint_32 = [4]u32{ 0.0, 0.0, 0.0, 0.0 } } },
-            gfx.ClearValue{ .depth_stencil = .{ .depth = 1.0, .stencil = 0 } },
+            gfx.ClearValue{
+                .color = .{
+                    .uint32 = [4]u32{
+                        0.0,
+                        0.0,
+                        0.0,
+                        0.0,
+                    },
+                },
+            },
+            gfx.ClearValue{
+                .depthStencil = .{
+                    .depth = 1.0,
+                    .stencil = 0,
+                },
+            },
         };
 
-        gfx.device.cmdBeginRenderPass(graphics.Renderer.getCurrentCmdList(), &gfx.RenderPassBeginInfo{
-            .render_pass = renderPass,
+        try gfx.CmdBeginRenderPass(graphics.Renderer.getCurrentCmdList(), &gfx.RenderPassBeginInfo{
+            .renderPass = renderPass,
             .framebuffer = framebuffer,
-            .render_area = renderArea,
-            .p_clear_values = @ptrCast(&clearValues),
-            .clear_value_count = @intCast(clearValues.len),
-        }, gfx.SubpassContents.@"inline");
+            .renderArea = renderArea,
+            .pClearValues = @ptrCast(&clearValues),
+            .clearValueCount = @intCast(clearValues.len),
+        }, gfx.SubpassContents.Inline);
     }
 
     pub fn renderIDs(
@@ -414,56 +437,88 @@ pub const Editor = struct {
         const tracy_zone = tracy.ZoneNC(@src(), "Render IDs", 0x00_ff_ff_00);
         defer tracy_zone.End();
 
-        const renderArea = gfx.Rect2D{
-            .offset = gfx.Offset2D{ .x = 0, .y = 0 },
-            .extent = gfx.Extent2D{
-                .width = graphics.InputState.viewportX,
-                .height = graphics.InputState.viewportY,
+        try gfx.CmdBindPipeline(
+            graphics.Renderer.getCurrentCmdList(),
+            gfx.PipelineBindPoint.Graphics,
+            idPipeline,
+        );
+
+        try gfx.CmdSetViewport(
+            graphics.Renderer.getCurrentCmdList(),
+            0,
+            &[_]gfx.Viewport{
+                gfx.Viewport{
+                    .width = @floatFromInt(graphics.InputState.viewportX),
+                    .height = -@as(f32, @floatFromInt(graphics.InputState.viewportY)),
+                    .minDepth = 0.0,
+                    .maxDepth = 1.0,
+                    .x = 0.0,
+                    .y = @floatFromInt(graphics.InputState.viewportY),
+                },
             },
-        };
+        );
 
-        gfx.device.cmdBindPipeline(graphics.Renderer.getCurrentCmdList(), gfx.PipelineBindPoint.graphics, idPipeline);
-        gfx.device.cmdSetViewport(graphics.Renderer.getCurrentCmdList(), 0, 1, @ptrCast(&gfx.Viewport{
-            .width = @floatFromInt(graphics.InputState.viewportX),
-            .height = -@as(f32, @floatFromInt(graphics.InputState.viewportY)),
-            .min_depth = 0.0,
-            .max_depth = 1.0,
-            .x = 0.0,
-            .y = @floatFromInt(graphics.InputState.viewportY),
-        }));
-        gfx.device.cmdSetScissor(graphics.Renderer.getCurrentCmdList(), 0, 1, @ptrCast(&renderArea));
+        try gfx.CmdSetScissor(
+            graphics.Renderer.getCurrentCmdList(),
+            0,
+            &[_]gfx.Rect2D{
+                gfx.Rect2D{
+                    .offset = gfx.Offset2D{ .x = 0, .y = 0 },
+                    .extent = gfx.Extent2D{
+                        .width = graphics.InputState.viewportX,
+                        .height = graphics.InputState.viewportY,
+                    },
+                },
+            },
+        );
 
-        gfx.device.cmdBindVertexBuffers(graphics.Renderer.getCurrentCmdList(), 0, 1, @ptrCast(&model[0].vertexBuffer.buffer), &[_]u64{0});
-        gfx.device.cmdBindIndexBuffer(graphics.Renderer.getCurrentCmdList(), model[0].indexBuffer.buffer, 0, gfx.IndexType.uint32);
+        try gfx.CmdBindVertexBuffers(
+            graphics.Renderer.getCurrentCmdList(),
+            0,
+            1,
+            @ptrCast(&model[0].vertexBuffer.buffer),
+            &[_]u64{0},
+        );
+        try gfx.CmdBindIndexBuffer(
+            graphics.Renderer.getCurrentCmdList(),
+            model[0].indexBuffer.buffer,
+            0,
+            gfx.IndexType.Uint32,
+        );
 
-        const setsToBind = [_]gfx.DescriptorSet{
-            graphics.Renderer.descriptorSet,
-        };
-
-        gfx.device.cmdBindDescriptorSets(graphics.Renderer.getCurrentCmdList(), gfx.PipelineBindPoint.graphics, pipelineLayout, 0, setsToBind.len, @ptrCast(&setsToBind), 0, null);
+        try gfx.CmdBindDescriptorSets(
+            graphics.Renderer.getCurrentCmdList(),
+            gfx.PipelineBindPoint.Graphics,
+            pipelineLayout,
+            0,
+            &[_]gfx.DescriptorSet{
+                graphics.Renderer.descriptorSet,
+            },
+            &[_]u32{},
+        );
 
         for (modelInstances, it.entities()) |intance, e| {
-            gfx.device.cmdPushConstants(
+            try gfx.CmdPushConstants(
                 graphics.Renderer.getCurrentCmdList(),
                 pipelineLayout,
-                gfx.ShaderStageFlags{ .fragment_bit = true },
+                gfx.toFlags(&[_]gfx.ShaderStageFlagBits{.FragmentBit}),
                 0,
                 2 * @sizeOf(u32),
                 @ptrCast(&e),
             );
 
-            gfx.device.cmdBindDescriptorSets(
+            try gfx.CmdBindDescriptorSets(
                 graphics.Renderer.getCurrentCmdList(),
-                gfx.PipelineBindPoint.graphics,
+                gfx.PipelineBindPoint.Graphics,
                 pipelineLayout,
                 1,
-                1,
-                @ptrCast(&intance.descriptorSet),
-                0,
-                null,
+                &[_]gfx.DescriptorSet{
+                    intance.descriptorSet,
+                },
+                &[_]u32{},
             );
 
-            gfx.device.cmdDrawIndexed(
+            try gfx.CmdDrawIndexed(
                 graphics.Renderer.getCurrentCmdList(),
                 @intCast(model[0].mesh.indexData.len),
                 1,
@@ -474,89 +529,84 @@ pub const Editor = struct {
         }
     }
 
-    fn stopRenderIDs(_: *flecs.iter_t) void {
-        gfx.device.cmdEndRenderPass(graphics.Renderer.getCurrentCmdList());
+    fn stopRenderIDs(_: *flecs.iter_t) !void {
+        try gfx.CmdEndRenderPass(graphics.Renderer.getCurrentCmdList());
 
-        gfx.device.cmdPipelineBarrier(
+        try gfx.CmdPipelineBarrier(
             graphics.Renderer.getCurrentCmdList(),
-            gfx.PipelineStageFlags{ .color_attachment_output_bit = true },
-            gfx.PipelineStageFlags{ .transfer_bit = true },
-            gfx.DependencyFlags{},
-            0,
-            undefined,
-            0,
-            undefined,
-            1,
-            @ptrCast(&gfx.ImageMemoryBarrier{
-                .image = writeToImage.image,
-                .src_access_mask = .{},
-                .dst_access_mask = .{
-                    .transfer_read_bit = true,
-                },
-                .old_layout = .transfer_src_optimal,
-                .new_layout = .transfer_src_optimal,
-                .subresource_range = .{
-                    .aspect_mask = .{
-                        .color_bit = true,
+            gfx.toFlags(&[_]gfx.PipelineStageFlagBits{.ColorAttachmentOutputBit}),
+            gfx.toFlags(&[_]gfx.PipelineStageFlagBits{.TransferBit}),
+            gfx.toFlags(&[_]gfx.DependencyFlagBits{}),
+            &[_]gfx.MemoryBarrier{},
+            &[_]gfx.BufferMemoryBarrier{},
+            &[_]gfx.ImageMemoryBarrier{
+                gfx.ImageMemoryBarrier{
+                    .image = writeToImage.image,
+                    .srcAccessMask = gfx.toFlags(&[_]gfx.AccessFlagBits{}),
+                    .dstAccessMask = gfx.toFlags(&[_]gfx.AccessFlagBits{.TransferReadBit}),
+                    .oldLayout = .TransferSrcOptimal,
+                    .newLayout = .TransferSrcOptimal,
+                    .subresourceRange = .{
+                        .aspectMask = gfx.toFlags(&[_]gfx.ImageAspectFlagBits{.ColorBit}),
+                        .baseArrayLayer = 0,
+                        .layerCount = 1,
+                        .baseMipLevel = 0,
+                        .levelCount = 1,
                     },
-                    .base_array_layer = 0,
-                    .layer_count = 1,
-                    .base_mip_level = 0,
-                    .level_count = 1,
+                    .dstQueueFamilyIndex = gfx.queueFamilyIgnored,
+                    .srcQueueFamilyIndex = gfx.queueFamilyIgnored,
                 },
-                .dst_queue_family_index = gfx.QUEUE_FAMILY_IGNORED,
-                .src_queue_family_index = gfx.QUEUE_FAMILY_IGNORED,
-            }),
+            },
         );
 
-        gfx.device.cmdCopyImageToBuffer(
+        try gfx.CmdCopyImageToBuffer(
             graphics.Renderer.getCurrentCmdList(),
             writeToImage.image,
-            gfx.ImageLayout.transfer_src_optimal,
+            gfx.ImageLayout.TransferSrcOptimal,
             readBackBuffer.buffer,
-            1,
-            @ptrCast(&gfx.BufferImageCopy{
-                .buffer_image_height = 0,
-                .buffer_offset = 0,
-                .buffer_row_length = 0,
-                .image_offset = gfx.Offset3D{
-                    .x = 0,
-                    .y = 0,
-                    .z = 0,
+            &[_]gfx.BufferImageCopy{
+                gfx.BufferImageCopy{
+                    .bufferImageHeight = 0,
+                    .bufferOffset = 0,
+                    .bufferRowLength = 0,
+                    .imageOffset = gfx.Offset3D{
+                        .x = 0,
+                        .y = 0,
+                        .z = 0,
+                    },
+                    .imageExtent = gfx.Extent3D{
+                        .width = graphics.InputState.viewportX,
+                        .height = graphics.InputState.viewportY,
+                        .depth = 1,
+                    },
+                    .imageSubresource = gfx.ImageSubresourceLayers{
+                        .aspectMask = gfx.toFlags(&[_]gfx.ImageAspectFlagBits{.ColorBit}),
+                        .baseArrayLayer = 0,
+                        .layerCount = 1,
+                        .mipLevel = 0,
+                    },
                 },
-                .image_extent = gfx.Extent3D{
-                    .width = graphics.InputState.viewportX,
-                    .height = graphics.InputState.viewportY,
-                    .depth = 1,
-                },
-                .image_subresource = gfx.ImageSubresourceLayers{
-                    .aspect_mask = .{ .color_bit = true },
-                    .base_array_layer = 0,
-                    .layer_count = 1,
-                    .mip_level = 0,
-                },
-            }),
+            },
         );
 
-        gfx.device.cmdPipelineBarrier(
+        try gfx.CmdPipelineBarrier(
             graphics.Renderer.getCurrentCmdList(),
-            gfx.PipelineStageFlags{ .transfer_bit = true },
-            gfx.PipelineStageFlags{ .transfer_bit = true },
-            gfx.DependencyFlags{},
-            0,
-            undefined,
-            1,
-            @ptrCast(&gfx.BufferMemoryBarrier{
-                .buffer = readBackBuffer.buffer,
-                .offset = 0,
-                .size = graphics.InputState.viewportX * graphics.InputState.viewportY * 2 * @sizeOf(u32),
-                .src_access_mask = .{ .transfer_write_bit = true },
-                .dst_access_mask = .{ .transfer_write_bit = true },
-                .src_queue_family_index = gfx.QUEUE_FAMILY_IGNORED,
-                .dst_queue_family_index = gfx.QUEUE_FAMILY_IGNORED,
-            }),
-            0,
-            undefined,
+            gfx.toFlags(&[_]gfx.PipelineStageFlagBits{.TransferBit}),
+            gfx.toFlags(&[_]gfx.PipelineStageFlagBits{.TransferBit}),
+            gfx.toFlags(&[_]gfx.DependencyFlagBits{}),
+            &[_]gfx.MemoryBarrier{},
+            &[_]gfx.BufferMemoryBarrier{
+                gfx.BufferMemoryBarrier{
+                    .buffer = readBackBuffer.buffer,
+                    .offset = 0,
+                    .size = graphics.InputState.viewportX * graphics.InputState.viewportY * 2 * @sizeOf(u32),
+                    .srcAccessMask = gfx.toFlags(&[_]gfx.AccessFlagBits{.TransferWriteBit}),
+                    .dstAccessMask = gfx.toFlags(&[_]gfx.AccessFlagBits{.TransferWriteBit}),
+                    .srcQueueFamilyIndex = gfx.queueFamilyIgnored,
+                    .dstQueueFamilyIndex = gfx.queueFamilyIgnored,
+                },
+            },
+            &[_]gfx.ImageMemoryBarrier{},
         );
     }
 
@@ -565,115 +615,126 @@ pub const Editor = struct {
             gfx.vkAllocator,
             &gfx.BufferCreateInfo{
                 .size = width * height * 2 * @sizeOf(u32),
-                .usage = gfx.BufferUsageFlags{ .transfer_dst_bit = true },
-                .sharing_mode = gfx.SharingMode.exclusive,
+                .usage = gfx.toFlags(&[_]gfx.BufferUsageFlagBits{.TransferDstBit}),
+                .sharingMode = gfx.SharingMode.Exclusive,
+                .pQueueFamilyIndices = null,
             },
             &gfx.vma.VmaAllocationCreateInfo{
                 .usage = gfx.vma.VMA_MEMORY_USAGE_CPU_TO_GPU,
             },
         );
 
-        depthImage = try gfx.createImage(gfx.vkAllocator, &.{
-            .image_type = gfx.ImageType.@"2d",
-            .format = gfx.Format.d16_unorm,
-            .extent = gfx.Extent3D{
-                .width = width,
-                .height = height,
-                .depth = 1,
+        depthImage = try gfx.createImage(
+            gfx.vkAllocator,
+            &gfx.ImageCreateInfo{
+                .imageType = gfx.ImageType.@"2d",
+                .format = gfx.Format.D16Unorm,
+                .extent = gfx.Extent3D{
+                    .width = width,
+                    .height = height,
+                    .depth = 1,
+                },
+                .arrayLayers = 1,
+                .mipLevels = 1,
+                .samples = .@"1Bit",
+                .tiling = gfx.ImageTiling.Optimal,
+                .initialLayout = gfx.ImageLayout.Undefined,
+                .usage = gfx.toFlags(&[_]gfx.ImageUsageFlagBits{.DepthStencilAttachmentBit}),
+                .sharingMode = gfx.SharingMode.Exclusive,
+                .pQueueFamilyIndices = null,
+                .queueFamilyIndexCount = 0,
             },
-            .array_layers = 1,
-            .mip_levels = 1,
-            .samples = gfx.SampleCountFlags{ .@"1_bit" = true },
-            .tiling = gfx.ImageTiling.optimal,
-            .initial_layout = gfx.ImageLayout.undefined,
-            .usage = gfx.ImageUsageFlags{ .depth_stencil_attachment_bit = true },
-            .sharing_mode = gfx.SharingMode.exclusive,
-            .p_queue_family_indices = null,
-            .queue_family_index_count = 0,
-        }, &.{
-            .usage = gfx.vma.VMA_MEMORY_USAGE_GPU_ONLY,
-        });
+            &.{
+                .usage = gfx.vma.VMA_MEMORY_USAGE_GPU_ONLY,
+            },
+        );
 
         writeToImage = try gfx.createImage(gfx.vkAllocator, &.{
-            .image_type = gfx.ImageType.@"2d",
-            .format = gfx.Format.r32g32_uint,
+            .imageType = gfx.ImageType.@"2d",
+            .format = gfx.Format.R32g32Uint,
             .extent = gfx.Extent3D{
                 .width = width,
                 .height = height,
                 .depth = 1,
             },
-            .array_layers = 1,
-            .mip_levels = 1,
-            .samples = gfx.SampleCountFlags{ .@"1_bit" = true },
-            .tiling = gfx.ImageTiling.optimal,
-            .initial_layout = gfx.ImageLayout.undefined,
-            .usage = gfx.ImageUsageFlags{
-                .color_attachment_bit = true,
-                .transfer_src_bit = true,
-            },
-            .sharing_mode = gfx.SharingMode.exclusive,
-            .p_queue_family_indices = null,
-            .queue_family_index_count = 0,
+            .arrayLayers = 1,
+            .mipLevels = 1,
+            .samples = .@"1Bit",
+            .tiling = gfx.ImageTiling.Optimal,
+            .initialLayout = gfx.ImageLayout.Undefined,
+            .usage = gfx.toFlags(&[_]gfx.ImageUsageFlagBits{
+                .ColorAttachmentBit,
+                .TransferSrcBit,
+            }),
+            .sharingMode = gfx.SharingMode.Exclusive,
+            .pQueueFamilyIndices = null,
+            .queueFamilyIndexCount = 0,
         }, &.{
             .usage = gfx.vma.VMA_MEMORY_USAGE_GPU_ONLY,
         });
 
-        depthImageView = try gfx.device.createImageView(&.{
-            .image = depthImage.image,
-            .view_type = gfx.ImageViewType.@"2d",
-            .format = gfx.Format.d16_unorm,
-            .components = gfx.ComponentMapping{
-                .a = gfx.ComponentSwizzle.a,
-                .r = gfx.ComponentSwizzle.r,
-                .g = gfx.ComponentSwizzle.g,
-                .b = gfx.ComponentSwizzle.b,
+        depthImageView = try gfx.CreateImageView(
+            &gfx.ImageViewCreateInfo{
+                .image = depthImage.image,
+                .viewType = gfx.ImageViewType.@"2d",
+                .format = gfx.Format.D16Unorm,
+                .components = gfx.ComponentMapping{
+                    .a = gfx.ComponentSwizzle.A,
+                    .r = gfx.ComponentSwizzle.R,
+                    .g = gfx.ComponentSwizzle.G,
+                    .b = gfx.ComponentSwizzle.B,
+                },
+                .subresourceRange = gfx.ImageSubresourceRange{
+                    .aspectMask = gfx.toFlags(&[_]gfx.ImageAspectFlagBits{.DepthBit}),
+                    .baseArrayLayer = 0,
+                    .layerCount = 1,
+                    .baseMipLevel = 0,
+                    .levelCount = 1,
+                },
             },
-            .subresource_range = gfx.ImageSubresourceRange{
-                .aspect_mask = gfx.ImageAspectFlags{ .depth_bit = true },
-                .base_array_layer = 0,
-                .layer_count = 1,
-                .base_mip_level = 0,
-                .level_count = 1,
-            },
-        }, null);
+        );
 
-        writeToImageView = try gfx.device.createImageView(&.{
-            .image = writeToImage.image,
-            .view_type = gfx.ImageViewType.@"2d",
-            .format = gfx.Format.r32g32_uint,
-            .components = gfx.ComponentMapping{
-                .a = gfx.ComponentSwizzle.a,
-                .r = gfx.ComponentSwizzle.r,
-                .g = gfx.ComponentSwizzle.g,
-                .b = gfx.ComponentSwizzle.b,
+        writeToImageView = try gfx.CreateImageView(
+            &gfx.ImageViewCreateInfo{
+                .image = writeToImage.image,
+                .viewType = gfx.ImageViewType.@"2d",
+                .format = gfx.Format.R32g32Uint,
+                .components = gfx.ComponentMapping{
+                    .a = gfx.ComponentSwizzle.A,
+                    .r = gfx.ComponentSwizzle.R,
+                    .g = gfx.ComponentSwizzle.G,
+                    .b = gfx.ComponentSwizzle.B,
+                },
+                .subresourceRange = gfx.ImageSubresourceRange{
+                    .aspectMask = gfx.toFlags(&[_]gfx.ImageAspectFlagBits{.ColorBit}),
+                    .baseArrayLayer = 0,
+                    .layerCount = 1,
+                    .baseMipLevel = 0,
+                    .levelCount = 1,
+                },
             },
-            .subresource_range = gfx.ImageSubresourceRange{
-                .aspect_mask = gfx.ImageAspectFlags{ .color_bit = true },
-                .base_array_layer = 0,
-                .layer_count = 1,
-                .base_mip_level = 0,
-                .level_count = 1,
-            },
-        }, null);
+        );
 
-        framebuffer = try gfx.device.createFramebuffer(&gfx.FramebufferCreateInfo{
-            .render_pass = renderPass,
-            .p_attachments = &.{
-                writeToImageView,
-                depthImageView,
+        framebuffer = try gfx.CreateFramebuffer(
+            &gfx.FramebufferCreateInfo{
+                .renderPass = renderPass,
+                .pAttachments = &[_]gfx.ImageView{
+                    writeToImageView,
+                    depthImageView,
+                },
+                .attachmentCount = 2,
+                .width = width,
+                .height = height,
+                .layers = 1,
             },
-            .attachment_count = 2,
-            .width = width,
-            .height = height,
-            .layers = 1,
-        }, null);
+        );
     }
 
-    fn destroyReadBackData() void {
-        gfx.device.destroyFramebuffer(framebuffer, null);
+    fn destroyReadBackData() !void {
+        try gfx.DestroyFramebuffer(framebuffer);
 
-        gfx.device.destroyImageView(depthImageView, null);
-        gfx.device.destroyImageView(writeToImageView, null);
+        try gfx.DestroyImageView(depthImageView);
+        try gfx.DestroyImageView(writeToImageView);
 
         gfx.destroyImage(gfx.vkAllocator, depthImage);
         gfx.destroyImage(gfx.vkAllocator, writeToImage);
@@ -684,16 +745,18 @@ pub const Editor = struct {
         const instanceDescriptorBindings = [_]gfx.DescriptorSetLayoutBinding{
             gfx.DescriptorSetLayoutBinding{
                 .binding = 0,
-                .descriptor_type = gfx.DescriptorType.uniform_buffer,
-                .descriptor_count = 1,
-                .stage_flags = gfx.ShaderStageFlags{ .vertex_bit = true },
+                .descriptorType = gfx.DescriptorType.UniformBuffer,
+                .descriptorCount = 1,
+                .stageFlags = gfx.toFlags(&[_]gfx.ShaderStageFlagBits{.VertexBit}),
             },
         };
 
-        instanceTransformLayout = try gfx.device.createDescriptorSetLayout(&gfx.DescriptorSetLayoutCreateInfo{
-            .p_bindings = &instanceDescriptorBindings,
-            .binding_count = @intCast(instanceDescriptorBindings.len),
-        }, null);
+        instanceTransformLayout = try gfx.CreateDescriptorSetLayout(
+            &gfx.DescriptorSetLayoutCreateInfo{
+                .pBindings = &instanceDescriptorBindings,
+                .bindingCount = @intCast(instanceDescriptorBindings.len),
+            },
+        );
 
         const setLayouts = [_]gfx.DescriptorSetLayout{
             graphics.Renderer.globalDescriptorSetLayout,
@@ -703,15 +766,17 @@ pub const Editor = struct {
         const pushConstantRanges = gfx.PushConstantRange{
             .offset = 0,
             .size = 2 * @sizeOf(u32),
-            .stage_flags = .{ .fragment_bit = true },
+            .stageFlags = gfx.toFlags(&[_]gfx.ShaderStageFlagBits{.FragmentBit}),
         };
 
-        pipelineLayout = try gfx.device.createPipelineLayout(&gfx.PipelineLayoutCreateInfo{
-            .p_set_layouts = @ptrCast(&setLayouts),
-            .set_layout_count = @intCast(setLayouts.len),
-            .p_push_constant_ranges = @ptrCast(&pushConstantRanges),
-            .push_constant_range_count = 1,
-        }, null);
+        pipelineLayout = try gfx.CreatePipelineLayout(
+            &gfx.PipelineLayoutCreateInfo{
+                .pSetLayouts = @ptrCast(&setLayouts),
+                .setLayoutCount = @intCast(setLayouts.len),
+                .pPushConstantRanges = @ptrCast(&pushConstantRanges),
+                .pushConstantRangeCount = 1,
+            },
+        );
 
         return pipelineLayout;
     }
@@ -719,99 +784,101 @@ pub const Editor = struct {
     fn createRenderPass() !gfx.RenderPass {
         const attachmentDescriptions = [_]gfx.AttachmentDescription{
             gfx.AttachmentDescription{
-                .format = gfx.Format.r32g32_uint, //u64 of our entity id
-                .samples = gfx.SampleCountFlags{ .@"1_bit" = true },
-                .load_op = gfx.AttachmentLoadOp.clear,
-                .store_op = gfx.AttachmentStoreOp.store,
-                .stencil_load_op = gfx.AttachmentLoadOp.dont_care,
-                .stencil_store_op = gfx.AttachmentStoreOp.dont_care,
-                .initial_layout = gfx.ImageLayout.undefined,
-                .final_layout = gfx.ImageLayout.transfer_src_optimal,
+                .format = gfx.Format.R32g32Uint, //u64 of our entity id
+                .samples = .@"1Bit",
+                .loadOp = gfx.AttachmentLoadOp.Clear,
+                .storeOp = gfx.AttachmentStoreOp.Store,
+                .stencilLoadOp = gfx.AttachmentLoadOp.DontCare,
+                .stencilStoreOp = gfx.AttachmentStoreOp.DontCare,
+                .initialLayout = gfx.ImageLayout.Undefined,
+                .finalLayout = gfx.ImageLayout.TransferSrcOptimal,
             },
             gfx.AttachmentDescription{
-                .format = gfx.Format.d16_unorm,
-                .samples = gfx.SampleCountFlags{ .@"1_bit" = true },
-                .load_op = gfx.AttachmentLoadOp.clear,
-                .store_op = gfx.AttachmentStoreOp.dont_care,
-                .stencil_load_op = gfx.AttachmentLoadOp.dont_care,
-                .stencil_store_op = gfx.AttachmentStoreOp.dont_care,
-                .initial_layout = gfx.ImageLayout.undefined,
-                .final_layout = gfx.ImageLayout.depth_stencil_attachment_optimal,
+                .format = gfx.Format.D16Unorm,
+                .samples = .@"1Bit",
+                .loadOp = gfx.AttachmentLoadOp.Clear,
+                .storeOp = gfx.AttachmentStoreOp.DontCare,
+                .stencilLoadOp = gfx.AttachmentLoadOp.DontCare,
+                .stencilStoreOp = gfx.AttachmentStoreOp.DontCare,
+                .initialLayout = gfx.ImageLayout.Undefined,
+                .finalLayout = gfx.ImageLayout.DepthStencilAttachmentOptimal,
             },
         };
 
         const colorReferences = [_]gfx.AttachmentReference{
             gfx.AttachmentReference{
                 .attachment = 0,
-                .layout = gfx.ImageLayout.color_attachment_optimal,
+                .layout = gfx.ImageLayout.ColorAttachmentOptimal,
             },
         };
         const depthRefernce = gfx.AttachmentReference{
             .attachment = 1,
-            .layout = gfx.ImageLayout.depth_stencil_attachment_optimal,
+            .layout = gfx.ImageLayout.DepthStencilAttachmentOptimal,
         };
 
         const subpasses = [_]gfx.SubpassDescription{
             gfx.SubpassDescription{
-                .pipeline_bind_point = gfx.PipelineBindPoint.graphics,
-                .p_input_attachments = null,
-                .input_attachment_count = 0,
-                .p_depth_stencil_attachment = &depthRefernce,
-                .p_color_attachments = &colorReferences,
-                .p_resolve_attachments = null,
-                .color_attachment_count = 1,
-                .p_preserve_attachments = null,
-                .preserve_attachment_count = 0,
+                .pipelineBindPoint = gfx.PipelineBindPoint.Graphics,
+                .pInputAttachments = null,
+                .inputAttachmentCount = 0,
+                .pDepthStencilAttachment = &depthRefernce,
+                .pColorAttachments = &colorReferences,
+                .pResolveAttachments = null,
+                .colorAttachmentCount = 1,
+                .pPreserveAttachments = null,
+                .preserveAttachmentCount = 0,
             },
         };
 
         const subpassDependencies = [_]gfx.SubpassDependency{
             gfx.SubpassDependency{
-                .src_subpass = gfx.SUBPASS_EXTERNAL,
-                .dst_subpass = 0,
-                .src_stage_mask = .{
-                    .color_attachment_output_bit = true,
-                    .early_fragment_tests_bit = true,
-                },
-                .dst_stage_mask = .{
-                    .color_attachment_output_bit = true,
-                    .early_fragment_tests_bit = true,
-                },
-                .src_access_mask = .{},
-                .dst_access_mask = .{
-                    .color_attachment_write_bit = true,
-                    .depth_stencil_attachment_write_bit = true,
-                },
-                .dependency_flags = .{},
+                .srcSubpass = gfx.subpassExternal,
+                .dstSubpass = 0,
+                .srcStageMask = gfx.toFlags(&[_]gfx.PipelineStageFlagBits{
+                    .ColorAttachmentOutputBit,
+                    .EarlyFragmentTestsBit,
+                }),
+                .dstStageMask = gfx.toFlags(&[_]gfx.PipelineStageFlagBits{
+                    .ColorAttachmentOutputBit,
+                    .EarlyFragmentTestsBit,
+                }),
+                .srcAccessMask = gfx.toFlags(&[_]gfx.AccessFlagBits{}),
+                .dstAccessMask = gfx.toFlags(&[_]gfx.AccessFlagBits{
+                    .ColorAttachmentWriteBit,
+                    .DepthStencilAttachmentWriteBit,
+                }),
+                .dependencyFlags = gfx.toFlags(&[_]gfx.DependencyFlagBits{}),
             },
             gfx.SubpassDependency{
-                .src_subpass = 0,
-                .dst_subpass = gfx.SUBPASS_EXTERNAL,
-                .src_stage_mask = .{
-                    .late_fragment_tests_bit = true,
-                    .color_attachment_output_bit = true,
-                },
-                .dst_stage_mask = .{
-                    .early_fragment_tests_bit = true,
-                },
-                .src_access_mask = .{
-                    .depth_stencil_attachment_write_bit = true,
-                    .color_attachment_write_bit = true,
-                },
-                .dst_access_mask = .{
+                .srcSubpass = 0,
+                .dstSubpass = gfx.subpassExternal,
+                .srcStageMask = gfx.toFlags(&[_]gfx.PipelineStageFlagBits{
+                    .LateFragmentTestsBit,
+                    .ColorAttachmentOutputBit,
+                }),
+                .dstStageMask = gfx.toFlags(&[_]gfx.PipelineStageFlagBits{
+                    .EarlyFragmentTestsBit,
+                }),
+                .srcAccessMask = gfx.toFlags(&[_]gfx.AccessFlagBits{
+                    .DepthStencilAttachmentWriteBit,
+                    .ColorAttachmentWriteBit,
+                }),
+                .dstAccessMask = gfx.toFlags(&[_]gfx.AccessFlagBits{
                     //.depth_stencil_attachment_write_bit = true,
-                },
-                .dependency_flags = .{},
+                }),
+                .dependencyFlags = gfx.toFlags(&[_]gfx.DependencyFlagBits{}),
             },
         };
 
-        return try gfx.device.createRenderPass(&gfx.RenderPassCreateInfo{
-            .p_attachments = &attachmentDescriptions,
-            .attachment_count = @intCast(attachmentDescriptions.len),
-            .p_subpasses = &subpasses,
-            .subpass_count = @intCast(subpasses.len),
-            .p_dependencies = &subpassDependencies,
-            .dependency_count = @intCast(subpassDependencies.len),
-        }, null);
+        return try gfx.CreateRenderPass(
+            &gfx.RenderPassCreateInfo{
+                .pAttachments = &attachmentDescriptions,
+                .attachmentCount = @intCast(attachmentDescriptions.len),
+                .pSubpasses = &subpasses,
+                .subpassCount = @intCast(subpasses.len),
+                .pDependencies = &subpassDependencies,
+                .dependencyCount = @intCast(subpassDependencies.len),
+            },
+        );
     }
 };

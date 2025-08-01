@@ -2,7 +2,7 @@ const flecs = @import("zflecs");
 
 pub fn cleanUpComponent(T: type, scene: *flecs.world_t) !void {
     var queryDesc = flecs.query_desc_t{};
-    queryDesc.filter.terms[0] = flecs.term_t{
+    queryDesc.terms[0] = flecs.term_t{
         .id = flecs.id(T),
     };
 
@@ -14,7 +14,7 @@ pub fn cleanUpComponent(T: type, scene: *flecs.world_t) !void {
         if (flecs.field(&iter, T, 1)) |comps| {
             if (flecs.field_is_self(&iter, 1)) {
                 for (comps) |*comp| {
-                    comp.deinit();
+                    try comp.deinit();
                 }
             }
         }

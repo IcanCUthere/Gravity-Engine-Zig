@@ -8,197 +8,264 @@ pub const vk = @import("vulkan.zig");
 
 pub usingnamespace vk;
 
-pub var instance: vk.InstProxy = undefined;
-pub var device: vk.DevProxy = undefined;
 pub var physicalDevice: vk.PhysicalDevice = undefined;
 pub var vkAllocator: vk.Allocator = undefined;
-
-pub var baseDispatch: vk.BaseDispatch = undefined;
-var instanceDispatch: vk.InstanceDispatch = undefined;
-var deviceDispatch: vk.DeviceDispatch = undefined;
-
 pub var renderFamily: u32 = undefined;
 pub var renderQueue: vk.Queue = undefined;
 
 var deviceProperties: vk.PhysicalDeviceProperties = undefined;
 
-const required_device_extensions = [_][*:0]const u8{
-    vk.extensions.khr_swapchain.name,
-};
-
 pub fn init() !void {
-    const extensions = try glfw.getRequiredInstanceExtensions();
+    const version = vk.Version13;
+    const extensions = [_]type{vk.KHRSwapchain};
+    const validation = if (builtin.mode == .Debug) true else false;
 
-    baseDispatch = try vk.BaseWrapper.load(vk.glfwGetInstanceProcAddress);
+    try version.loadBaseFunctions();
 
-    instance.handle = try baseDispatch.createInstance(&.{
-        .p_application_info = &.{
-            .p_application_name = "Gravity Control",
-            .application_version = vk.makeApiVersion(0, 0, 0, 0),
-            .p_engine_name = "Gravity Engine",
-            .engine_version = vk.makeApiVersion(0, 0, 0, 0),
-            .api_version = vk.API_VERSION_1_2,
+    const glfwExtensionsNames = try glfw.getRequiredInstanceExtensions();
+
+    var instanceExtensionCount: u32 = 0;
+    var instanceExtensionsNames: [extensions.len][*:0]const u8 = undefined;
+    inline for (extensions) |ext| {
+        if (ext.isInstanceExtension) {
+            instanceExtensionsNames[instanceExtensionCount] = ext.name;
+            instanceExtensionCount += 1;
+        }
+    }
+
+    const combinedInstanceExtensions = try mem.fixedBuffer.alloc(
+        [*:0]const u8,
+        instanceExtensionCount + glfwExtensionsNames.len,
+    );
+    defer mem.fixedBuffer.free(combinedInstanceExtensions);
+
+    for (instanceExtensionsNames, 0..) |name, i| {
+        combinedInstanceExtensions[i] = name;
+    }
+    for (glfwExtensionsNames, instanceExtensionsNames.len - 1..) |name, i| {
+        combinedInstanceExtensions[i] = name;
+    }
+
+    vk.gInstance = try vk.CreateInstance(&vk.InstanceCreateInfo{
+        .enabledExtensionCount = @intCast(combinedInstanceExtensions.len),
+        .ppEnabledExtensionNames = combinedInstanceExtensions.ptr,
+        .enabledLayerCount = if (validation) 1 else 0,
+        .ppEnabledLayerNames = &[_][*:0]const u8{"VK_LAYER_KHRONOS_validation"},
+        .pApplicationInfo = &vk.ApplicationInfo{
+            .apiVersion = vk.apiVersion13,
+            .applicationVersion = 0,
+            .engineVersion = 0,
+            .pApplicationName = "Test",
+            .pEngineName = "Test",
         },
-        .enabled_extension_count = @intCast(extensions.len),
-        .pp_enabled_extension_names = extensions.ptr,
-        .enabled_layer_count = if (builtin.mode == .Debug) 1 else 0,
-        .pp_enabled_layer_names = if (builtin.mode == .Debug) &.{"VK_LAYER_KHRONOS_validation"} else null,
-    }, null);
+    });
 
-    instanceDispatch = try vk.InstanceDispatch.load(instance.handle, baseDispatch.dispatch.vkGetInstanceProcAddr);
-    instance.wrapper = &instanceDispatch;
+    try version.loadInstanceFunctions();
+    inline for (extensions) |ext| {
+        if (ext.isInstanceExtension) {
+            try ext.load();
+        }
+    }
 
-    physicalDevice = try findBestDevice();
+    const surfaceExtensions = [_]type{
+        vk.KHRSurface,
+        vk.KHRWin32Surface,
+        vk.KHRXlibSurface,
+        vk.KHRWaylandSurface,
+        vk.KHRXcbSurface,
+        vk.KHRAndroidSurface,
+    };
 
-    deviceProperties = instance.getPhysicalDeviceProperties(physicalDevice);
-    util.log.print("Used Graphics Card: {s}, Driver Version: {d}", .{ deviceProperties.device_name, deviceProperties.driver_version }, .Info, .Abstract, .{ .Vulkan = true });
+    inline for (surfaceExtensions) |surfaceExtension| {
+        for (glfwExtensionsNames) |glfwExtensionName| {
+            if (mem.eql(u8, mem.span(surfaceExtension.name), mem.span(glfwExtensionName))) {
+                try surfaceExtension.load();
+            }
+        }
+    }
+
+    var deviceExtensionCount: u32 = 0;
+    var deviceExtensions: [extensions.len][*:0]const u8 = undefined;
+    inline for (extensions) |ext| {
+        if (!ext.isInstanceExtension) {
+            deviceExtensions[deviceExtensionCount] = ext.name;
+            deviceExtensionCount += 1;
+        }
+    }
+
+    physicalDevice = try findBestDevice(&deviceExtensions);
+    deviceProperties = try vk.GetPhysicalDeviceProperties(physicalDevice);
+
+    util.log.print(
+        "Used Graphics Card: {s}, Driver Version: {d}",
+        .{ deviceProperties.deviceName, deviceProperties.driverVersion },
+        .Info,
+        .Abstract,
+        .{ .Vulkan = true },
+    );
 
     renderFamily = try getGraphicsFamily(physicalDevice);
 
-    var familyCount: u32 = undefined;
-    instance.getPhysicalDeviceQueueFamilyProperties(physicalDevice, &familyCount, null);
+    const queueFamilyProperties = try vk.GetPhysicalDeviceQueueFamilyProperties(
+        physicalDevice,
+        mem.fixedBuffer,
+    );
 
     const priority = [_]f32{1};
-    const queueCreateInfo = try util.mem.fixedBuffer.alloc(vk.DeviceQueueCreateInfo, familyCount);
-    defer util.mem.fixedBuffer.free(queueCreateInfo);
+    const queueCreateInfos = try util.mem.fixedBuffer.alloc(
+        vk.DeviceQueueCreateInfo,
+        queueFamilyProperties.len,
+    );
+    defer util.mem.fixedBuffer.free(queueCreateInfos);
 
-    for (queueCreateInfo, 0..) |*q, i| {
-        q.* = vk.DeviceQueueCreateInfo{
-            .queue_family_index = @intCast(i),
-            .queue_count = 1,
-            .p_queue_priorities = &priority,
+    for (queueCreateInfos, 0..) |*createInfo, i| {
+        createInfo.* = vk.DeviceQueueCreateInfo{
+            .queueFamilyIndex = @intCast(i),
+            .queueCount = 1,
+            .pQueuePriorities = &priority,
         };
     }
 
     const timelineFeature = vk.PhysicalDeviceTimelineSemaphoreFeatures{
-        .timeline_semaphore = vk.TRUE,
+        .timelineSemaphore = vk.TRUE,
     };
 
-    var deviceFeatures: vk.PhysicalDeviceFeatures = instance.getPhysicalDeviceFeatures(physicalDevice);
-    deviceFeatures.sampler_anisotropy = vk.TRUE;
+    var deviceFeatures: vk.PhysicalDeviceFeatures = try vk.GetPhysicalDeviceFeatures(physicalDevice);
+    deviceFeatures.samplerAnisotropy = vk.TRUE;
 
-    device.handle = try instance.createDevice(physicalDevice, &.{
-        .p_next = &timelineFeature,
-        .enabled_extension_count = required_device_extensions.len,
-        .pp_enabled_extension_names = &required_device_extensions,
-        .enabled_layer_count = 0,
-        .pp_enabled_layer_names = null,
-        .p_enabled_features = &deviceFeatures,
-        .queue_create_info_count = familyCount,
-        .p_queue_create_infos = queueCreateInfo.ptr,
-    }, null);
+    vk.gDevice = try vk.CreateDevice(
+        physicalDevice,
+        &vk.DeviceCreateInfo{
+            .pNext = &timelineFeature,
+            .enabledLayerCount = 0,
+            .ppEnabledLayerNames = null,
+            .enabledExtensionCount = deviceExtensionCount,
+            .ppEnabledExtensionNames = &deviceExtensions,
+            .pEnabledFeatures = &deviceFeatures,
+            .queueCreateInfoCount = @intCast(queueCreateInfos.len),
+            .pQueueCreateInfos = queueCreateInfos.ptr,
+        },
+    );
 
-    deviceDispatch = try vk.DeviceDispatch.load(device.handle, instance.wrapper.dispatch.vkGetDeviceProcAddr);
-    device.wrapper = &deviceDispatch;
+    try version.loadDeviceFunctions();
+    inline for (extensions) |ext| {
+        if (!ext.isInstanceExtension) {
+            try ext.load();
+        }
+    }
 
-    renderQueue = device.getDeviceQueue(renderFamily, 0);
-
-    vkAllocator = try vk.createAllocator(instance, device, physicalDevice, vk.API_VERSION_1_2, baseDispatch);
+    renderQueue = try vk.GetDeviceQueue(renderFamily, 0);
+    vkAllocator = try vk.createAllocator(
+        vk.gInstance,
+        vk.gDevice,
+        physicalDevice,
+        vk.apiVersion13,
+    );
 }
 
-pub fn deinit() void {
+pub fn deinit() !void {
     vk.destroyAllocator(vkAllocator);
-    device.destroyDevice(null);
-    instance.destroyInstance(null);
+    try vk.DestroyDevice();
+    try vk.DestroyInstance();
 }
 
 pub fn createRenderPass(viewportFormat: vk.Format, clear: bool) !vk.RenderPass {
     const attachmentDescriptions = [_]vk.AttachmentDescription{
         vk.AttachmentDescription{
             .format = viewportFormat,
-            .samples = vk.SampleCountFlags{ .@"1_bit" = true },
-            .load_op = if (clear) vk.AttachmentLoadOp.clear else .dont_care,
-            .store_op = vk.AttachmentStoreOp.store,
-            .stencil_load_op = vk.AttachmentLoadOp.dont_care,
-            .stencil_store_op = vk.AttachmentStoreOp.dont_care,
-            .initial_layout = vk.ImageLayout.undefined,
-            .final_layout = vk.ImageLayout.present_src_khr,
+            .samples = .@"1Bit",
+            .loadOp = if (clear) vk.AttachmentLoadOp.Clear else vk.AttachmentLoadOp.DontCare,
+            .storeOp = vk.AttachmentStoreOp.Store,
+            .stencilLoadOp = vk.AttachmentLoadOp.DontCare,
+            .stencilStoreOp = vk.AttachmentStoreOp.DontCare,
+            .initialLayout = vk.ImageLayout.Undefined,
+            .finalLayout = vk.ImageLayout.PresentSrcKhr,
         },
         vk.AttachmentDescription{
-            .format = vk.Format.d16_unorm,
-            .samples = vk.SampleCountFlags{ .@"1_bit" = true },
-            .load_op = vk.AttachmentLoadOp.clear,
-            .store_op = vk.AttachmentStoreOp.dont_care,
-            .stencil_load_op = vk.AttachmentLoadOp.dont_care,
-            .stencil_store_op = vk.AttachmentStoreOp.dont_care,
-            .initial_layout = vk.ImageLayout.undefined,
-            .final_layout = vk.ImageLayout.depth_stencil_attachment_optimal,
+            .format = vk.Format.D16Unorm,
+            .samples = .@"1Bit",
+            .loadOp = vk.AttachmentLoadOp.Clear,
+            .storeOp = vk.AttachmentStoreOp.DontCare,
+            .stencilLoadOp = vk.AttachmentLoadOp.DontCare,
+            .stencilStoreOp = vk.AttachmentStoreOp.DontCare,
+            .initialLayout = vk.ImageLayout.Undefined,
+            .finalLayout = vk.ImageLayout.DepthStencilAttachmentOptimal,
         },
     };
 
     const colorReferences = [_]vk.AttachmentReference{
         vk.AttachmentReference{
             .attachment = 0,
-            .layout = vk.ImageLayout.color_attachment_optimal,
+            .layout = vk.ImageLayout.ColorAttachmentOptimal,
         },
     };
     const depthRefernce = vk.AttachmentReference{
         .attachment = 1,
-        .layout = vk.ImageLayout.depth_stencil_attachment_optimal,
+        .layout = vk.ImageLayout.DepthStencilAttachmentOptimal,
     };
 
     const subpasses = [_]vk.SubpassDescription{
         vk.SubpassDescription{
-            .pipeline_bind_point = vk.PipelineBindPoint.graphics,
-            .p_input_attachments = null,
-            .input_attachment_count = 0,
-            .p_depth_stencil_attachment = &depthRefernce,
-            .p_color_attachments = &colorReferences,
-            .p_resolve_attachments = null,
-            .color_attachment_count = 1,
-            .p_preserve_attachments = null,
-            .preserve_attachment_count = 0,
+            .pipelineBindPoint = vk.PipelineBindPoint.Graphics,
+            .pInputAttachments = null,
+            .inputAttachmentCount = 0,
+            .pDepthStencilAttachment = &depthRefernce,
+            .pColorAttachments = &colorReferences,
+            .pResolveAttachments = null,
+            .colorAttachmentCount = 1,
+            .pPreserveAttachments = null,
+            .preserveAttachmentCount = 0,
         },
     };
 
     const subpassDependencies = [_]vk.SubpassDependency{
         vk.SubpassDependency{
-            .src_subpass = vk.SUBPASS_EXTERNAL,
-            .dst_subpass = 0,
-            .src_stage_mask = .{
-                .color_attachment_output_bit = true,
-                .early_fragment_tests_bit = true,
-            },
-            .dst_stage_mask = .{
-                .color_attachment_output_bit = true,
-                .early_fragment_tests_bit = true,
-            },
-            .src_access_mask = .{},
-            .dst_access_mask = .{
-                .color_attachment_write_bit = true,
-                .depth_stencil_attachment_write_bit = true,
-            },
-            .dependency_flags = .{},
+            .srcSubpass = vk.subpassExternal,
+            .dstSubpass = 0,
+            .srcStageMask = vk.toFlags(&[_]vk.PipelineStageFlagBits{
+                .ColorAttachmentOutputBit,
+                .EarlyFragmentTestsBit,
+            }),
+            .dstStageMask = vk.toFlags(&[_]vk.PipelineStageFlagBits{
+                .ColorAttachmentOutputBit,
+                .EarlyFragmentTestsBit,
+            }),
+            .srcAccessMask = vk.toFlags(&[_]vk.AccessFlagBits{}),
+            .dstAccessMask = vk.toFlags(&[_]vk.AccessFlagBits{
+                .ColorAttachmentWriteBit,
+                .DepthStencilAttachmentWriteBit,
+            }),
+            .dependencyFlags = vk.toFlags(&[_]vk.DependencyFlagBits{}),
         },
         vk.SubpassDependency{
-            .src_subpass = 0,
-            .dst_subpass = vk.SUBPASS_EXTERNAL,
-            .src_stage_mask = .{
-                .late_fragment_tests_bit = true,
-                .color_attachment_output_bit = true,
-            },
-            .dst_stage_mask = .{
-                .early_fragment_tests_bit = true,
-            },
-            .src_access_mask = .{
-                .depth_stencil_attachment_write_bit = true,
-                .color_attachment_write_bit = true,
-            },
-            .dst_access_mask = .{
+            .srcSubpass = 0,
+            .dstSubpass = vk.subpassExternal,
+            .srcStageMask = vk.toFlags(&[_]vk.PipelineStageFlagBits{
+                .LateFragmentTestsBit,
+                .ColorAttachmentOutputBit,
+            }),
+            .dstStageMask = vk.toFlags(&[_]vk.PipelineStageFlagBits{
+                .EarlyFragmentTestsBit,
+            }),
+            .srcAccessMask = vk.toFlags(&[_]vk.AccessFlagBits{
+                .DepthStencilAttachmentWriteBit,
+                .ColorAttachmentWriteBit,
+            }),
+            .dstAccessMask = vk.toFlags(&[_]vk.AccessFlagBits{
                 //.depth_stencil_attachment_write_bit = true,
-            },
-            .dependency_flags = .{},
+            }),
+            .dependencyFlags = vk.toFlags(&[_]vk.DependencyFlagBits{}),
         },
     };
 
-    return try device.createRenderPass(&vk.RenderPassCreateInfo{
-        .p_attachments = &attachmentDescriptions,
-        .attachment_count = @intCast(attachmentDescriptions.len),
-        .p_subpasses = &subpasses,
-        .subpass_count = @intCast(subpasses.len),
-        .p_dependencies = &subpassDependencies,
-        .dependency_count = @intCast(subpassDependencies.len),
-    }, null);
+    return try vk.CreateRenderPass(&vk.RenderPassCreateInfo{
+        .pAttachments = &attachmentDescriptions,
+        .attachmentCount = @intCast(attachmentDescriptions.len),
+        .pSubpasses = &subpasses,
+        .subpassCount = @intCast(subpasses.len),
+        .pDependencies = &subpassDependencies,
+        .dependencyCount = @intCast(subpassDependencies.len),
+    });
 }
 
 pub fn createPipeline(
@@ -214,13 +281,13 @@ pub fn createPipeline(
 ) !vk.Pipeline {
     const stages = [_]vk.PipelineShaderStageCreateInfo{
         vk.PipelineShaderStageCreateInfo{
-            .p_name = "main",
-            .stage = vk.ShaderStageFlags{ .vertex_bit = true },
+            .pName = "main",
+            .stage = .VertexBit,
             .module = vertModule,
         },
         vk.PipelineShaderStageCreateInfo{
-            .p_name = "main",
-            .stage = vk.ShaderStageFlags{ .fragment_bit = true },
+            .pName = "main",
+            .stage = .FragmentBit,
             .module = fragModule,
         },
     };
@@ -229,8 +296,8 @@ pub fn createPipeline(
         vk.Viewport{
             .width = if (viewportSize) |v| v[0] else 0,
             .height = if (viewportSize) |v| v[1] else 0,
-            .min_depth = 0.0,
-            .max_depth = 1.0,
+            .minDepth = 0.0,
+            .maxDepth = 1.0,
             .x = 0.0,
             .y = 0.0,
         },
@@ -250,116 +317,119 @@ pub fn createPipeline(
     };
 
     const stencilOpState = vk.StencilOpState{
-        .pass_op = vk.StencilOp.keep,
-        .fail_op = vk.StencilOp.keep,
-        .depth_fail_op = vk.StencilOp.keep,
-        .compare_op = vk.CompareOp.always,
-        .compare_mask = 0,
+        .passOp = vk.StencilOp.Keep,
+        .failOp = vk.StencilOp.Keep,
+        .depthFailOp = vk.StencilOp.Keep,
+        .compareOp = vk.CompareOp.Always,
+        .compareMask = 0,
         .reference = 0,
-        .write_mask = 0,
+        .writeMask = 0,
     };
 
     const colorBlendAttachments = [_]vk.PipelineColorBlendAttachmentState{
         vk.PipelineColorBlendAttachmentState{
-            .blend_enable = vk.FALSE,
-            .color_blend_op = vk.BlendOp.add,
-            .alpha_blend_op = vk.BlendOp.add,
-            .color_write_mask = vk.ColorComponentFlags{
-                .a_bit = true,
-                .r_bit = true,
-                .g_bit = true,
-                .b_bit = true,
-            },
-            .src_color_blend_factor = vk.BlendFactor.one,
-            .dst_color_blend_factor = vk.BlendFactor.zero,
-            .src_alpha_blend_factor = vk.BlendFactor.one,
-            .dst_alpha_blend_factor = vk.BlendFactor.zero,
+            .blendEnable = vk.FALSE,
+            .colorBlendOp = vk.BlendOp.Add,
+            .alphaBlendOp = vk.BlendOp.Add,
+            .colorWriteMask = vk.toFlags(&[_]vk.ColorComponentFlagBits{
+                .RBit,
+                .GBit,
+                .BBit,
+                .ABit,
+            }),
+            .srcColorBlendFactor = vk.BlendFactor.One,
+            .dstColorBlendFactor = vk.BlendFactor.Zero,
+            .srcAlphaBlendFactor = vk.BlendFactor.One,
+            .dstAlphaBlendFactor = vk.BlendFactor.Zero,
         },
     };
 
     const dynamicStates = if (viewportSize == null) [_]vk.DynamicState{
-        vk.DynamicState.viewport,
-        vk.DynamicState.scissor,
+        vk.DynamicState.Viewport,
+        vk.DynamicState.Scissor,
     } else [_]vk.DynamicState{};
 
-    var pipeline: vk.Pipeline = undefined;
-
-    const createInfo = [_]vk.GraphicsPipelineCreateInfo{
+    const createInfos = [_]vk.GraphicsPipelineCreateInfo{
         vk.GraphicsPipelineCreateInfo{
             .layout = layout,
-            .render_pass = renderPass,
+            .renderPass = renderPass,
             .subpass = 0,
-            .base_pipeline_index = 0,
-            .base_pipeline_handle = vk.Pipeline.null_handle,
-            .p_stages = &stages,
-            .stage_count = @intCast(stages.len),
-            .p_vertex_input_state = &vk.PipelineVertexInputStateCreateInfo{
-                .p_vertex_attribute_descriptions = vertexAttributes.ptr,
-                .vertex_attribute_description_count = @intCast(vertexAttributes.len),
-                .p_vertex_binding_descriptions = vertexBindings.ptr,
-                .vertex_binding_description_count = @intCast(vertexBindings.len),
+            .basePipelineIndex = 0,
+            .basePipelineHandle = null,
+            .pStages = &stages,
+            .stageCount = @intCast(stages.len),
+            .pVertexInputState = &vk.PipelineVertexInputStateCreateInfo{
+                .pVertexAttributeDescriptions = vertexAttributes.ptr,
+                .vertexAttributeDescriptionCount = @intCast(vertexAttributes.len),
+                .pVertexBindingDescriptions = vertexBindings.ptr,
+                .vertexBindingDescriptionCount = @intCast(vertexBindings.len),
             },
-            .p_input_assembly_state = &vk.PipelineInputAssemblyStateCreateInfo{
-                .primitive_restart_enable = vk.FALSE,
-                .topology = vk.PrimitiveTopology.triangle_list,
+            .pInputAssemblyState = &vk.PipelineInputAssemblyStateCreateInfo{
+                .primitiveRestartEnable = vk.FALSE,
+                .topology = vk.PrimitiveTopology.TriangleList,
             },
-            .p_tessellation_state = &vk.PipelineTessellationStateCreateInfo{
-                .patch_control_points = 0,
+            .pTessellationState = &vk.PipelineTessellationStateCreateInfo{
+                .patchControlPoints = 0,
             },
-            .p_viewport_state = &vk.PipelineViewportStateCreateInfo{
-                .p_viewports = &viewports,
-                .viewport_count = @intCast(viewports.len),
-                .p_scissors = &scissors,
-                .scissor_count = @intCast(scissors.len),
+            .pViewportState = &vk.PipelineViewportStateCreateInfo{
+                .pViewports = &viewports,
+                .viewportCount = @intCast(viewports.len),
+                .pScissors = &scissors,
+                .scissorCount = @intCast(scissors.len),
             },
-            .p_rasterization_state = &vk.PipelineRasterizationStateCreateInfo{
-                .polygon_mode = vk.PolygonMode.fill,
-                .cull_mode = vk.CullModeFlags{ .back_bit = true },
-                .front_face = vk.FrontFace.counter_clockwise,
-                .depth_bias_enable = vk.FALSE,
-                .depth_clamp_enable = vk.FALSE,
-                .rasterizer_discard_enable = vk.FALSE,
-                .depth_bias_clamp = 0.0,
-                .depth_bias_constant_factor = 0.0,
-                .depth_bias_slope_factor = 0.0,
-                .line_width = 1.0,
+            .pRasterizationState = &vk.PipelineRasterizationStateCreateInfo{
+                .polygonMode = vk.PolygonMode.Fill,
+                .cullMode = vk.toFlags(&[_]vk.CullModeFlagBits{.BackBit}),
+                .frontFace = vk.FrontFace.CounterClockwise,
+                .depthBiasEnable = vk.FALSE,
+                .depthClampEnable = vk.FALSE,
+                .rasterizerDiscardEnable = vk.FALSE,
+                .depthBiasClamp = 0.0,
+                .depthBiasConstantFactor = 0.0,
+                .depthBiasSlopeFactor = 0.0,
+                .lineWidth = 1.0,
             },
-            .p_multisample_state = &vk.PipelineMultisampleStateCreateInfo{
-                .rasterization_samples = vk.SampleCountFlags{ .@"1_bit" = true },
-                .alpha_to_coverage_enable = vk.FALSE,
-                .alpha_to_one_enable = vk.FALSE,
-                .sample_shading_enable = vk.FALSE,
-                .min_sample_shading = 1.0,
-                .p_sample_mask = null,
+            .pMultisampleState = &vk.PipelineMultisampleStateCreateInfo{
+                .rasterizationSamples = .@"1Bit",
+                .alphaToCoverageEnable = vk.FALSE,
+                .alphaToOneEnable = vk.FALSE,
+                .sampleShadingEnable = vk.FALSE,
+                .minSampleShading = 1.0,
+                .pSampleMask = null,
             },
-            .p_depth_stencil_state = &vk.PipelineDepthStencilStateCreateInfo{
-                .depth_test_enable = if (depthEnable) vk.TRUE else vk.FALSE,
-                .depth_write_enable = if (depthEnable) vk.TRUE else vk.FALSE,
-                .depth_bounds_test_enable = vk.FALSE,
-                .stencil_test_enable = vk.FALSE,
-                .depth_compare_op = vk.CompareOp.less,
-                .min_depth_bounds = 0.0,
-                .max_depth_bounds = 1.0,
+            .pDepthStencilState = &vk.PipelineDepthStencilStateCreateInfo{
+                .depthTestEnable = if (depthEnable) vk.TRUE else vk.FALSE,
+                .depthWriteEnable = if (depthEnable) vk.TRUE else vk.FALSE,
+                .depthBoundsTestEnable = vk.FALSE,
+                .stencilTestEnable = vk.FALSE,
+                .depthCompareOp = vk.CompareOp.Less,
+                .minDepthBounds = 0.0,
+                .maxDepthBounds = 1.0,
                 .front = stencilOpState,
                 .back = stencilOpState,
             },
-            .p_color_blend_state = &vk.PipelineColorBlendStateCreateInfo{
-                .logic_op_enable = vk.FALSE,
-                .logic_op = vk.LogicOp.copy,
-                .p_attachments = &colorBlendAttachments,
-                .attachment_count = @intCast(colorBlendAttachments.len),
-                .blend_constants = [4]f32{ 1.0, 1.0, 1.0, 1.0 },
+            .pColorBlendState = &vk.PipelineColorBlendStateCreateInfo{
+                .logicOpEnable = vk.FALSE,
+                .logicOp = vk.LogicOp.Copy,
+                .pAttachments = &colorBlendAttachments,
+                .attachmentCount = @intCast(colorBlendAttachments.len),
+                .blendConstants = [4]f32{ 1.0, 1.0, 1.0, 1.0 },
             },
-            .p_dynamic_state = &vk.PipelineDynamicStateCreateInfo{
-                .p_dynamic_states = &dynamicStates,
-                .dynamic_state_count = @intCast(dynamicStates.len),
+            .pDynamicState = &vk.PipelineDynamicStateCreateInfo{
+                .pDynamicStates = &dynamicStates,
+                .dynamicStateCount = @intCast(dynamicStates.len),
             },
         },
     };
 
-    _ = try device.createGraphicsPipelines(cache, 1, @ptrCast(&createInfo), null, @ptrCast(&pipeline));
+    const pipelines = try vk.CreateGraphicsPipelines(
+        cache,
+        &createInfos,
+        mem.fixedBuffer,
+    );
+    defer mem.fixedBuffer.free(pipelines);
 
-    return pipeline;
+    return pipelines[0];
 }
 
 pub fn getGraphicsCardName() []const u8 {
@@ -370,19 +440,15 @@ pub fn getDriverVersion() u32 {
     return deviceProperties.driver_version;
 }
 
-fn checkSuitable(pdev: vk.PhysicalDevice) !bool {
-    return try checkExtensionSupport(pdev);
-}
-
 fn getGraphicsFamily(pdev: vk.PhysicalDevice) !u32 {
-    var familyCount: u32 = undefined;
-    instance.getPhysicalDeviceQueueFamilyProperties(pdev, &familyCount, null);
-    const families = try util.mem.fixedBuffer.alloc(vk.QueueFamilyProperties, familyCount);
-    defer util.mem.fixedBuffer.free(families);
-    instance.getPhysicalDeviceQueueFamilyProperties(pdev, &familyCount, families.ptr);
+    const queueFamilyProperties = try vk.GetPhysicalDeviceQueueFamilyProperties(
+        pdev,
+        mem.fixedBuffer,
+    );
+    defer mem.fixedBuffer.free(queueFamilyProperties);
 
-    for (families, 0..) |properties, i| {
-        if (properties.queue_flags.graphics_bit) {
+    for (queueFamilyProperties, 0..) |properties, i| {
+        if ((properties.queueFlags | @intFromEnum(vk.QueueFlagBits.GraphicsBit)) > 0) {
             return @intCast(i);
         }
     }
@@ -400,40 +466,40 @@ fn findRankingSpot(T: type, ranking: []const T, item: T) u64 {
     return 100000;
 }
 
-fn getVRamSize(dev: vk.PhysicalDevice) u64 {
-    const memProps = instance.getPhysicalDeviceMemoryProperties(dev);
+fn getVRamSize(dev: vk.PhysicalDevice) !u64 {
+    const memProps = try vk.GetPhysicalDeviceMemoryProperties(dev);
 
-    for (0..memProps.memory_heap_count) |i| {
-        if (memProps.memory_heaps[i].flags.contains(.{ .device_local_bit = true })) {
-            return memProps.memory_heaps[i].size;
+    for (0..memProps.memoryHeapCount) |i| {
+        if ((memProps.memoryHeaps[i].flags | @intFromEnum(vk.MemoryHeapFlagBits.DeviceLocalBit)) > 0) {
+            return memProps.memoryHeaps[i].size;
         }
     }
 
     return 0;
 }
 
-fn hasBetterProperties(new: vk.PhysicalDevice, old: vk.PhysicalDevice) bool {
-    const newProps = instance.getPhysicalDeviceProperties(new);
-    const oldProps = instance.getPhysicalDeviceProperties(old);
+fn hasBetterProperties(new: vk.PhysicalDevice, old: vk.PhysicalDevice) !bool {
+    const newProps = try vk.GetPhysicalDeviceProperties(new);
+    const oldProps = try vk.GetPhysicalDeviceProperties(old);
 
     const typeRanking = [_]vk.PhysicalDeviceType{
-        .discrete_gpu,
-        .integrated_gpu,
-        .virtual_gpu,
-        .cpu,
-        .other,
+        .DiscreteGpu,
+        .IntegratedGpu,
+        .VirtualGpu,
+        .Cpu,
+        .Other,
     };
 
-    const newRanking = findRankingSpot(vk.PhysicalDeviceType, typeRanking[0..], newProps.device_type);
-    const oldRanking = findRankingSpot(vk.PhysicalDeviceType, typeRanking[0..], oldProps.device_type);
+    const newRanking = findRankingSpot(vk.PhysicalDeviceType, typeRanking[0..], newProps.deviceType);
+    const oldRanking = findRankingSpot(vk.PhysicalDeviceType, typeRanking[0..], oldProps.deviceType);
     if (newRanking < oldRanking) {
         return true;
     } else if (newRanking > oldRanking) {
         return false;
     }
 
-    const newVramSize = getVRamSize(new);
-    const oldVramSize = getVRamSize(old);
+    const newVramSize = try getVRamSize(new);
+    const oldVramSize = try getVRamSize(old);
 
     if (newVramSize > oldVramSize) {
         return true;
@@ -444,17 +510,14 @@ fn hasBetterProperties(new: vk.PhysicalDevice, old: vk.PhysicalDevice) bool {
     return false;
 }
 
-fn findBestDevice() !vk.PhysicalDevice {
-    var devCount: u32 = undefined;
-    _ = try instance.enumeratePhysicalDevices(&devCount, null);
-    const pdevs = try util.mem.fixedBuffer.alloc(vk.PhysicalDevice, devCount);
-    defer util.mem.fixedBuffer.free(pdevs);
-    _ = try instance.enumeratePhysicalDevices(&devCount, pdevs.ptr);
+fn findBestDevice(requiredExtensionNames: [][*:0]const u8) !vk.PhysicalDevice {
+    const physicalDevices = try vk.EnumeratePhysicalDevices(mem.fixedBuffer);
+    defer mem.fixedBuffer.free(physicalDevices);
 
     var bestDev: ?vk.PhysicalDevice = null;
-    for (pdevs) |dev| {
-        if (try checkSuitable(dev)) {
-            if (bestDev == null or hasBetterProperties(dev, bestDev.?)) {
+    for (physicalDevices) |dev| {
+        if (try checkExtensionSupport(dev, requiredExtensionNames)) {
+            if (bestDev == null or try hasBetterProperties(dev, bestDev.?)) {
                 bestDev = dev;
             }
         }
@@ -467,18 +530,17 @@ fn findBestDevice() !vk.PhysicalDevice {
     }
 }
 
-fn checkExtensionSupport(pdev: vk.PhysicalDevice) !bool {
-    var count: u32 = undefined;
-    _ = try instance.enumerateDeviceExtensionProperties(pdev, null, &count, null);
+fn checkExtensionSupport(pdev: vk.PhysicalDevice, requiredExtensionNames: [][*:0]const u8) !bool {
+    const extensionProperties = try vk.EnumerateDeviceExtensionProperties(
+        pdev,
+        null,
+        mem.fixedBuffer,
+    );
+    defer mem.fixedBuffer.free(extensionProperties);
 
-    const propsv = try util.mem.fixedBuffer.alloc(vk.ExtensionProperties, count);
-    defer util.mem.fixedBuffer.free(propsv);
-
-    _ = try instance.enumerateDeviceExtensionProperties(pdev, null, &count, propsv.ptr);
-
-    for (required_device_extensions) |ext| {
-        for (propsv) |props| {
-            if (mem.eql(u8, mem.span(ext), mem.sliceTo(&props.extension_name, 0))) {
+    for (requiredExtensionNames) |ext| {
+        for (extensionProperties) |props| {
+            if (mem.eql(u8, mem.span(ext), mem.sliceTo(&props.extensionName, 0))) {
                 break;
             }
         } else {

@@ -7,12 +7,12 @@ const tracy = @import("ztracy");
 const gfx = @import("Internal/interface.zig");
 const evnt = @import("Internal/event.zig");
 
-fn onEvent(it: *flecs.iter_t, viewports: []Viewport) void {
+fn onEvent(it: *flecs.iter_t, viewports: []Viewport) !void {
     const event: flecs.entity_t = it.event;
 
     for (viewports) |*v| {
         if (event == flecs.OnRemove) {
-            v.deinit();
+            try v.deinit();
         }
     }
 }
@@ -29,18 +29,18 @@ pub const Viewport = struct {
         flecs.override(scene, Prefab, Self);
 
         var setObsDesc = flecs.observer_desc_t{
-            .filter = flecs.filter_desc_t{
+            .query = flecs.query_desc_t{
                 .terms = [1]flecs.term_t{
                     flecs.term_t{
                         .id = flecs.id(Self),
                     },
-                } ++ ([1]flecs.term_t{.{}} ** 15),
+                } ++ ([1]flecs.term_t{.{}} ** 31),
             },
             .events = [_]u64{flecs.OnSet} ++ ([1]u64{0} ** 7),
             .callback = flecs.SystemImpl(onEvent).exec,
         };
 
-        flecs.OBSERVER(scene, "viewport events", &setObsDesc);
+        _ = flecs.OBSERVER(scene, "viewport events", &setObsDesc);
     }
 
     pub fn getPrefab() flecs.entity_t {
@@ -48,7 +48,7 @@ pub const Viewport = struct {
     }
 
     const SwapchainData = struct {
-        swapchain: gfx.SwapchainKHR = gfx.SwapchainKHR.null_handle,
+        swapchain: gfx.SwapchainKHR = null,
         depthBuffer: gfx.ImageAllocation = mem.zeroes(gfx.ImageAllocation),
         imageViews: []gfx.ImageView = ([_]gfx.ImageView{})[0..],
         framebuffers: []gfx.Framebuffer = ([_]gfx.Framebuffer{})[0..],
@@ -58,15 +58,15 @@ pub const Viewport = struct {
             return mem.zeroes(SwapchainData);
         }
 
-        fn deinit(self: *SwapchainData) void {
+        fn deinit(self: *SwapchainData) !void {
             for (self.imageViews) |view| {
-                gfx.device.destroyImageView(view, null);
+                try gfx.DestroyImageView(view);
             }
             for (self.framebuffers) |frabuf| {
-                gfx.device.destroyFramebuffer(frabuf, null);
+                try gfx.DestroyFramebuffer(frabuf);
             }
             gfx.destroyImage(gfx.vkAllocator, self.depthBuffer);
-            gfx.device.destroySwapchainKHR(self.swapchain, null);
+            try gfx.DestroySwapchainKHR(self.swapchain);
 
             util.mem.heap.free(self.framebuffers);
             util.mem.heap.free(self.imageViews);
@@ -116,7 +116,7 @@ pub const Viewport = struct {
         return self._format;
     }
 
-    //Not available until first nextFram() call
+    //Not available until first nextFrame() call
     pub fn getFramebuffer(self: Self) gfx.Framebuffer {
         return self._swapchainData[self._currentSwapchain].framebuffers[self._swapchainData[self._currentSwapchain].presentIndex];
     }
@@ -130,11 +130,11 @@ pub const Viewport = struct {
         const tracy_zone = tracy.ZoneNC(@src(), "Init Viewport", 0x00_ff_ff_00);
         defer tracy_zone.End();
 
-        gfx.glfw.windowHint(gfx.glfw.WindowHint.client_api, @intFromEnum(gfx.glfw.ClientApi.no_api));
+        gfx.glfw.windowHint(gfx.glfw.WindowHint.client_api, gfx.glfw.ClientApi.no_api);
         //glfw.windowHint(glfw.WindowHint.decorated, 0);
         var window = try gfx.glfw.Window.create(@intCast(width), @intCast(height), title, null);
 
-        const surface = try gfx.createSurface(gfx.instance, window);
+        const surface = try gfx.createSurface(window);
 
         var viewport = Viewport{
             ._window = window,
@@ -146,19 +146,19 @@ pub const Viewport = struct {
             ._renderQueueIndex = gfx.renderFamily,
         };
 
-        var family_count: u32 = undefined;
-        gfx.instance.getPhysicalDeviceQueueFamilyProperties(gfx.physicalDevice, &family_count, null);
-        const families = try util.mem.fixedBuffer.alloc(gfx.QueueFamilyProperties, family_count);
-        defer util.mem.fixedBuffer.free(families);
-        gfx.instance.getPhysicalDeviceQueueFamilyProperties(gfx.physicalDevice, &family_count, families.ptr);
+        const queueFamilyProperties = try gfx.GetPhysicalDeviceQueueFamilyProperties(
+            gfx.physicalDevice,
+            mem.fixedBuffer,
+        );
+        defer mem.fixedBuffer.free(queueFamilyProperties);
 
-        if (try gfx.instance.getPhysicalDeviceSurfaceSupportKHR(gfx.physicalDevice, viewport._renderQueueIndex, viewport._surface) == gfx.TRUE) {
-            viewport._presentQueue = gfx.device.getDeviceQueue(viewport._renderQueueIndex, 0);
+        if (try gfx.GetPhysicalDeviceSurfaceSupportKHR(gfx.physicalDevice, viewport._renderQueueIndex, viewport._surface) == gfx.TRUE) {
+            viewport._presentQueue = try gfx.GetDeviceQueue(viewport._renderQueueIndex, 0);
             viewport._presentQueueIndex = viewport._renderQueueIndex;
         } else {
-            for (families, 0..) |_, i| {
-                if (try gfx.instance.getPhysicalDeviceSurfaceSupportKHR(gfx.physicalDevice, @intCast(i), viewport._surface) == gfx.TRUE) {
-                    viewport._presentQueue = gfx.device.getDeviceQueue(viewport._renderQueueIndex, 0);
+            for (queueFamilyProperties, 0..) |_, i| {
+                if (try gfx.GetPhysicalDeviceSurfaceSupportKHR(gfx.physicalDevice, @intCast(i), viewport._surface) == gfx.TRUE) {
+                    viewport._presentQueue = try gfx.GetDeviceQueue(viewport._renderQueueIndex, 0);
                     viewport._presentQueueIndex = @intCast(i);
                     break;
                 }
@@ -190,7 +190,7 @@ pub const Viewport = struct {
             }
         }.resize);
 
-        _ = window.setWindowCloseCallback(struct {
+        _ = window.setCloseCallback(struct {
             fn close(wndw: *gfx.glfw.Window) callconv(.C) void {
                 wndw.getUserPointer(evnt.CallbackFunction).?(evnt.Event{ .windowClose = evnt.WindowCloseEvent{} });
             }
@@ -234,16 +234,16 @@ pub const Viewport = struct {
         return viewport;
     }
 
-    pub fn deinit(self: *Self) void {
+    pub fn deinit(self: *Self) !void {
         const tracy_zone = tracy.ZoneNC(@src(), "Deinit viewport", 0x00_ff_ff_00);
         defer tracy_zone.End();
 
         for (self._swapchainData) |*data| {
-            data.deinit();
+            try data.deinit();
         }
         util.mem.heap.free(self._swapchainData);
 
-        gfx.instance.destroySurfaceKHR(self._surface, null);
+        try gfx.DestroySurfaceKHR(self._surface);
         self._window.destroy();
     }
 
@@ -261,30 +261,38 @@ pub const Viewport = struct {
             const nextIndex: u32 = (self._currentSwapchain + 1) % self._imageCount;
             const lastIndex: u32 = (self._currentSwapchain + self._imageCount - 1) % self._imageCount;
 
-            self._swapchainData[lastIndex].deinit();
-            self._swapchainData[nextIndex].deinit();
+            try self._swapchainData[lastIndex].deinit();
+            try self._swapchainData[nextIndex].deinit();
             try self._initSwapchainData(nextIndex);
 
             self._currentSwapchain = nextIndex;
             self._resized = false;
         }
 
-        const res = try gfx.device.acquireNextImageKHR(self._swapchainData[self._currentSwapchain].swapchain, ~@as(u64, 0), semaphore, gfx.Fence.null_handle);
-        self._swapchainData[self._currentSwapchain].presentIndex = res.image_index;
+        try gfx.AcquireNextImageKHR(
+            self._swapchainData[self._currentSwapchain].swapchain,
+            ~@as(u64, 0),
+            semaphore,
+            null,
+            &self._swapchainData[self._currentSwapchain].presentIndex,
+        );
     }
 
     pub fn presentImage(self: *Self, semaphores: *gfx.Semaphore, count: u32) !void {
         const tracy_zone = tracy.ZoneNC(@src(), "Present image", 0x00_ff_ff_00);
         defer tracy_zone.End();
 
-        _ = try gfx.device.queuePresentKHR(self._presentQueue, &.{
-            .p_swapchains = &.{self._swapchainData[self._currentSwapchain].swapchain},
-            .p_image_indices = &.{self._swapchainData[self._currentSwapchain].presentIndex},
-            .swapchain_count = 1,
-            .p_wait_semaphores = @ptrCast(semaphores),
-            .wait_semaphore_count = count,
-            .p_results = null,
-        });
+        _ = try gfx.QueuePresentKHR(
+            self._presentQueue,
+            &gfx.PresentInfoKHR{
+                .pSwapchains = &[_]gfx.SwapchainKHR{self._swapchainData[self._currentSwapchain].swapchain},
+                .pImageIndices = &[_]u32{self._swapchainData[self._currentSwapchain].presentIndex},
+                .swapchainCount = 1,
+                .pWaitSemaphores = @ptrCast(semaphores),
+                .waitSemaphoreCount = count,
+                .pResults = null,
+            },
+        );
     }
 
     pub fn resize(self: *Self, width: u32, height: u32) void {
@@ -293,11 +301,11 @@ pub const Viewport = struct {
         self._height = height;
     }
 
-    pub fn setCursorEnabled(self: Self, enabled: bool) void {
+    pub fn setCursorEnabled(self: Self, enabled: bool) !void {
         if (enabled) {
-            self._window.setInputMode(.cursor, .normal);
+            try self._window.setInputMode(.cursor, .normal);
         } else {
-            self._window.setInputMode(.cursor, .disabled);
+            try self._window.setInputMode(.cursor, .disabled);
         }
     }
 
@@ -310,97 +318,112 @@ pub const Viewport = struct {
     }
 
     fn _initSwapchainData(self: *Self, index: u32) !void {
-        self._swapchainData[index].deinit();
+        try self._swapchainData[index].deinit();
 
         self._swapchainData[index].swapchain = try self._createSwapchain(self._swapchainData[self._currentSwapchain].swapchain);
 
-        var imageCount: u32 = undefined;
-        _ = try gfx.device.getSwapchainImagesKHR(self._swapchainData[index].swapchain, &imageCount, null);
-        const swapchainImages = try util.mem.fixedBuffer.alloc(gfx.Image, imageCount);
+        const swapchainImages = try gfx.GetSwapchainImagesKHR(self._swapchainData[index].swapchain, mem.fixedBuffer);
         defer util.mem.fixedBuffer.free(swapchainImages);
 
-        self._swapchainData[index].imageViews = try util.mem.heap.alloc(gfx.ImageView, imageCount + 1);
-        self._swapchainData[index].framebuffers = try util.mem.heap.alloc(gfx.Framebuffer, imageCount);
+        self._swapchainData[index].imageViews = try util.mem.heap.alloc(gfx.ImageView, swapchainImages.len + 1);
+        self._swapchainData[index].framebuffers = try util.mem.heap.alloc(gfx.Framebuffer, swapchainImages.len);
 
-        _ = try gfx.device.getSwapchainImagesKHR(self._swapchainData[index].swapchain, &imageCount, swapchainImages.ptr);
-
-        self._swapchainData[index].depthBuffer = try gfx.createImage(gfx.vkAllocator, &.{
-            .image_type = gfx.ImageType.@"2d",
-            .format = gfx.Format.d16_unorm,
-            .extent = gfx.Extent3D{ .width = self._width, .height = self._height, .depth = 1 },
-            .array_layers = self._layerCount,
-            .mip_levels = 1,
-            .samples = gfx.SampleCountFlags{ .@"1_bit" = true },
-            .tiling = gfx.ImageTiling.optimal,
-            .initial_layout = gfx.ImageLayout.undefined,
-            .usage = gfx.ImageUsageFlags{ .depth_stencil_attachment_bit = true },
-            .sharing_mode = gfx.SharingMode.exclusive,
-            .p_queue_family_indices = null,
-            .queue_family_index_count = 0,
-        }, &.{
-            .usage = gfx.vma.VMA_MEMORY_USAGE_GPU_ONLY,
-        });
-
-        self._swapchainData[index].imageViews[imageCount] = try gfx.device.createImageView(&.{
-            .image = self._swapchainData[index].depthBuffer.image,
-            .view_type = gfx.ImageViewType.@"2d",
-            .format = gfx.Format.d16_unorm,
-            .components = gfx.ComponentMapping{
-                .a = gfx.ComponentSwizzle.a,
-                .r = gfx.ComponentSwizzle.r,
-                .g = gfx.ComponentSwizzle.g,
-                .b = gfx.ComponentSwizzle.b,
+        self._swapchainData[index].depthBuffer = try gfx.createImage(
+            gfx.vkAllocator,
+            &gfx.ImageCreateInfo{
+                .imageType = gfx.ImageType.@"2d",
+                .format = gfx.Format.D16Unorm,
+                .extent = gfx.Extent3D{
+                    .width = self._width,
+                    .height = self._height,
+                    .depth = 1,
+                },
+                .arrayLayers = self._layerCount,
+                .mipLevels = 1,
+                .samples = .@"1Bit",
+                .tiling = gfx.ImageTiling.Optimal,
+                .initialLayout = gfx.ImageLayout.Undefined,
+                .usage = gfx.toFlags(&[_]gfx.ImageUsageFlagBits{.DepthStencilAttachmentBit}),
+                .sharingMode = gfx.SharingMode.Exclusive,
+                .pQueueFamilyIndices = null,
+                .queueFamilyIndexCount = 0,
             },
-            .subresource_range = gfx.ImageSubresourceRange{
-                .aspect_mask = gfx.ImageAspectFlags{ .depth_bit = true },
-                .base_array_layer = 0,
-                .layer_count = self._layerCount,
-                .base_mip_level = 0,
-                .level_count = 1,
+            &.{
+                .usage = gfx.vma.VMA_MEMORY_USAGE_GPU_ONLY,
             },
-        }, null);
+        );
+
+        self._swapchainData[index].imageViews[swapchainImages.len] = try gfx.CreateImageView(
+            &.{
+                .image = self._swapchainData[index].depthBuffer.image,
+                .viewType = gfx.ImageViewType.@"2d",
+                .format = gfx.Format.D16Unorm,
+                .components = gfx.ComponentMapping{
+                    .a = gfx.ComponentSwizzle.A,
+                    .r = gfx.ComponentSwizzle.R,
+                    .g = gfx.ComponentSwizzle.G,
+                    .b = gfx.ComponentSwizzle.B,
+                },
+                .subresourceRange = gfx.ImageSubresourceRange{
+                    .aspectMask = gfx.toFlags(&[_]gfx.ImageAspectFlagBits{.DepthBit}),
+                    .baseArrayLayer = 0,
+                    .layerCount = self._layerCount,
+                    .baseMipLevel = 0,
+                    .levelCount = 1,
+                },
+            },
+        );
 
         for (swapchainImages, 0..) |image, i| {
-            self._swapchainData[index].imageViews[i] = try gfx.device.createImageView(&.{
-                .image = image,
-                .view_type = gfx.ImageViewType.@"2d",
-                .format = self._format,
-                .components = gfx.ComponentMapping{
-                    .a = gfx.ComponentSwizzle.a,
-                    .r = gfx.ComponentSwizzle.r,
-                    .g = gfx.ComponentSwizzle.g,
-                    .b = gfx.ComponentSwizzle.b,
+            self._swapchainData[index].imageViews[i] = try gfx.CreateImageView(
+                &gfx.ImageViewCreateInfo{
+                    .image = image,
+                    .viewType = gfx.ImageViewType.@"2d",
+                    .format = self._format,
+                    .components = gfx.ComponentMapping{
+                        .a = gfx.ComponentSwizzle.A,
+                        .r = gfx.ComponentSwizzle.R,
+                        .g = gfx.ComponentSwizzle.G,
+                        .b = gfx.ComponentSwizzle.B,
+                    },
+                    .subresourceRange = gfx.ImageSubresourceRange{
+                        .aspectMask = gfx.toFlags(&[_]gfx.ImageAspectFlagBits{.ColorBit}),
+                        .baseArrayLayer = 0,
+                        .layerCount = self._layerCount,
+                        .baseMipLevel = 0,
+                        .levelCount = 1,
+                    },
                 },
-                .subresource_range = gfx.ImageSubresourceRange{
-                    .aspect_mask = gfx.ImageAspectFlags{ .color_bit = true },
-                    .base_array_layer = 0,
-                    .layer_count = self._layerCount,
-                    .base_mip_level = 0,
-                    .level_count = 1,
-                },
-            }, null);
+            );
 
-            self._swapchainData[index].framebuffers[i] = try gfx.device.createFramebuffer(&.{
-                .render_pass = self._renderPass,
-                .p_attachments = &.{
-                    self._swapchainData[index].imageViews[i],
-                    self._swapchainData[index].imageViews[imageCount],
+            self._swapchainData[index].framebuffers[i] = try gfx.CreateFramebuffer(
+                &gfx.FramebufferCreateInfo{
+                    .renderPass = self._renderPass,
+                    .pAttachments = &[_]gfx.ImageView{
+                        self._swapchainData[index].imageViews[i],
+                        self._swapchainData[index].imageViews[swapchainImages.len],
+                    },
+                    .attachmentCount = 2,
+                    .width = self._width,
+                    .height = self._height,
+                    .layers = self._layerCount,
                 },
-                .attachment_count = 2,
-                .width = self._width,
-                .height = self._height,
-                .layers = self._layerCount,
-            }, null);
+            );
         }
     }
 
     fn _pickFormat(self: *Self) !gfx.SurfaceFormatKHR {
-        var formatCount: u32 = undefined;
-        _ = try gfx.instance.getPhysicalDeviceSurfaceFormatsKHR(gfx.physicalDevice, self._surface, &formatCount, null);
-        const surfaceFormats = try util.mem.fixedBuffer.alloc(gfx.SurfaceFormatKHR, formatCount);
-        defer util.mem.fixedBuffer.free(surfaceFormats);
-        _ = try gfx.instance.getPhysicalDeviceSurfaceFormatsKHR(gfx.physicalDevice, self._surface, &formatCount, surfaceFormats.ptr);
-        return if (surfaceFormats[0].format == gfx.Format.undefined) gfx.SurfaceFormatKHR{ .format = gfx.Format.r8g8b8a8_unorm, .color_space = gfx.ColorSpaceKHR.srgb_nonlinear_khr } else surfaceFormats[0];
+        const surfaceFormats = try gfx.GetPhysicalDeviceSurfaceFormatsKHR(
+            gfx.physicalDevice,
+            self._surface,
+            mem.fixedBuffer,
+        );
+        defer mem.fixedBuffer.free(surfaceFormats);
+
+        return if (surfaceFormats[0].format == gfx.Format.Undefined) gfx.SurfaceFormatKHR{
+            .format = gfx.Format.R8g8b8a8Unorm,
+            .colorSpace = gfx.ColorSpaceKHR.colorSpaceSrgbNonlinearKhr,
+        } else surfaceFormats[0];
     }
 
     fn _createSwapchain(self: *Self, oldSwapchain: gfx.SwapchainKHR) !gfx.SwapchainKHR {
@@ -408,77 +431,91 @@ pub const Viewport = struct {
 
         self._format = surfaceFormat.format;
 
-        var presentModeCount: u32 = undefined;
-        _ = try gfx.instance.getPhysicalDeviceSurfacePresentModesKHR(gfx.physicalDevice, self._surface, &presentModeCount, null);
-        const presentModes = try util.mem.fixedBuffer.alloc(gfx.PresentModeKHR, presentModeCount);
-        defer util.mem.fixedBuffer.free(presentModes);
-        _ = try gfx.instance.getPhysicalDeviceSurfacePresentModesKHR(gfx.physicalDevice, self._surface, &presentModeCount, presentModes.ptr);
+        const presentModes = try gfx.GetPhysicalDeviceSurfacePresentModesKHR(
+            gfx.physicalDevice,
+            self._surface,
+            mem.fixedBuffer,
+        );
 
-        const capabilities = try gfx.instance.getPhysicalDeviceSurfaceCapabilitiesKHR(gfx.physicalDevice, self._surface);
+        const capabilities = try gfx.GetPhysicalDeviceSurfaceCapabilitiesKHR(
+            gfx.physicalDevice,
+            self._surface,
+        );
 
         const presentModeOrder = [_]gfx.PresentModeKHR{
-            gfx.PresentModeKHR.mailbox_khr,
-            gfx.PresentModeKHR.immediate_khr,
-            gfx.PresentModeKHR.fifo_khr,
-            gfx.PresentModeKHR.fifo_relaxed_khr,
-            gfx.PresentModeKHR.shared_demand_refresh_khr,
-            gfx.PresentModeKHR.shared_continuous_refresh_khr,
+            gfx.PresentModeKHR.presentModeMailboxKhr,
+            gfx.PresentModeKHR.presentModeImmediateKhr,
+            gfx.PresentModeKHR.presentModeFifoKhr,
+            gfx.PresentModeKHR.presentModeFifoRelaxedKhr,
+            gfx.PresentModeKHR.presentModeSharedDemandRefreshKhr,
+            gfx.PresentModeKHR.presentModeSharedContinuousRefreshKhr,
         };
 
-        const desiredAlphaFlags = gfx.CompositeAlphaFlagsKHR{ .opaque_bit_khr = true };
+        const alphaFlagOrder = [_]gfx.CompositeAlphaFlagBitsKHR{
+            .OpaqueBitKhr,
+            .InheritBitKhr,
+            .PostMultipliedBitKhr,
+            .PreMultipliedBitKhr,
+        };
 
-        if (self._imageCount > capabilities.max_image_count and capabilities.max_image_count != 0) {
-            self._imageCount = capabilities.max_image_count;
-        } else if (self._imageCount < capabilities.min_image_count and capabilities.max_image_count != 0) {
-            self._imageCount = capabilities.min_image_count;
+        if (self._imageCount > capabilities.maxImageCount and capabilities.maxImageCount != 0) {
+            self._imageCount = capabilities.maxImageCount;
+        } else if (self._imageCount < capabilities.minImageCount and capabilities.maxImageCount != 0) {
+            self._imageCount = capabilities.minImageCount;
         }
 
-        if (self._layerCount > capabilities.max_image_array_layers) {
-            self._layerCount = capabilities.max_image_array_layers;
+        if (self._layerCount > capabilities.maxImageArrayLayers) {
+            self._layerCount = capabilities.maxImageArrayLayers;
         }
 
-        if (capabilities.current_extent.height == 0xFFFFFFFF) {
-            if (self._height > capabilities.max_image_extent.height) {
-                self._height = capabilities.max_image_extent.height;
-            } else if (self._height < capabilities.min_image_extent.height) {
-                self._height = capabilities.min_image_extent.height;
+        if (capabilities.currentExtent.height == 0xFFFFFFFF) {
+            if (self._height > capabilities.maxImageExtent.height) {
+                self._height = capabilities.maxImageExtent.height;
+            } else if (self._height < capabilities.minImageExtent.height) {
+                self._height = capabilities.minImageExtent.height;
             }
         } else {
-            self._height = capabilities.current_extent.height;
+            self._height = capabilities.currentExtent.height;
         }
 
-        if (capabilities.current_extent.width == 0xFFFFFFFF) {
-            if (self._width > capabilities.max_image_extent.width) {
-                self._width = capabilities.max_image_extent.width;
-            } else if (self._width < capabilities.min_image_extent.width) {
-                self._width = capabilities.min_image_extent.width;
+        if (capabilities.currentExtent.width == 0xFFFFFFFF) {
+            if (self._width > capabilities.maxImageExtent.width) {
+                self._width = capabilities.maxImageExtent.width;
+            } else if (self._width < capabilities.minImageExtent.width) {
+                self._width = capabilities.minImageExtent.width;
             }
         } else {
-            self._width = capabilities.current_extent.width;
+            self._width = capabilities.currentExtent.width;
         }
 
-        return try gfx.device.createSwapchainKHR(&.{
-            .surface = self._surface,
-            .old_swapchain = oldSwapchain,
-            .min_image_count = self._imageCount,
-            .image_array_layers = self._layerCount,
-            .clipped = gfx.TRUE,
-            .image_usage = gfx.ImageUsageFlags{ .color_attachment_bit = true },
-            .image_extent = gfx.Extent2D{ .height = self._height, .width = self._width },
-            .image_format = self._format,
-            .image_color_space = surfaceFormat.color_space,
-            .composite_alpha = desiredAlphaFlags.intersect(capabilities.supported_composite_alpha),
-            .queue_family_index_count = if (self._renderQueueIndex == self._presentQueueIndex) 1 else 2,
-            .p_queue_family_indices = if (self._renderQueueIndex == self._presentQueueIndex) &.{self._renderQueueIndex} else &.{ self._renderQueueIndex, self._presentQueueIndex },
-            .image_sharing_mode = if (self._renderQueueIndex == self._presentQueueIndex) gfx.SharingMode.exclusive else gfx.SharingMode.concurrent,
-            .pre_transform = capabilities.current_transform,
-            .present_mode = loop: for (presentModeOrder) |desiredMode| {
-                for (presentModes) |availableMode| {
-                    if (availableMode == desiredMode) {
-                        break :loop availableMode;
+        return try gfx.CreateSwapchainKHR(
+            &gfx.SwapchainCreateInfoKHR{
+                .surface = self._surface,
+                .oldSwapchain = oldSwapchain,
+                .minImageCount = self._imageCount,
+                .imageArrayLayers = self._layerCount,
+                .clipped = gfx.TRUE,
+                .imageUsage = gfx.toFlags(&[_]gfx.ImageUsageFlagBits{.ColorAttachmentBit}),
+                .imageExtent = gfx.Extent2D{ .height = self._height, .width = self._width },
+                .imageFormat = self._format,
+                .imageColorSpace = surfaceFormat.colorSpace,
+                .compositeAlpha = loop: for (alphaFlagOrder) |flag| {
+                    if ((gfx.toFlags(&[_]gfx.CompositeAlphaFlagBitsKHR{flag}) | capabilities.supportedCompositeAlpha) > 0) {
+                        break :loop flag;
                     }
-                }
-            } else return error.NoPresentModeAvailable,
-        }, null);
+                } else return error.NoAlphaModeAvailable,
+                .queueFamilyIndexCount = if (self._renderQueueIndex == self._presentQueueIndex) 1 else 2,
+                .pQueueFamilyIndices = if (self._renderQueueIndex == self._presentQueueIndex) &[_]u32{self._renderQueueIndex} else &[_]u32{ self._renderQueueIndex, self._presentQueueIndex },
+                .imageSharingMode = if (self._renderQueueIndex == self._presentQueueIndex) gfx.SharingMode.Exclusive else gfx.SharingMode.Concurrent,
+                .preTransform = capabilities.currentTransform,
+                .presentMode = loop: for (presentModeOrder) |desiredMode| {
+                    for (presentModes) |availableMode| {
+                        if (availableMode == desiredMode) {
+                            break :loop availableMode;
+                        }
+                    }
+                } else return error.NoPresentModeAvailable,
+            },
+        );
     }
 };

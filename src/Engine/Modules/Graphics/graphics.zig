@@ -61,7 +61,7 @@ pub const Graphics = struct {
             1,
             onEvent,
         );
-        viewport.setCursorEnabled(false);
+        try viewport.setCursorEnabled(false);
 
         try Renderer.init(viewport.getFormat());
 
@@ -73,59 +73,61 @@ pub const Graphics = struct {
 
         var desc = flecs.system_desc_t{};
         desc.callback = flecs.SystemImpl(Renderer.render).exec;
-        desc.query.filter.terms[0] = flecs.term_t{
+        desc.query.terms[0] = flecs.term_t{
             .id = flecs.id(ModelInstance),
             .inout = .In,
         };
-        desc.query.filter.terms[1] = flecs.term_t{
+        desc.query.terms[1] = flecs.term_t{
             .id = flecs.id(Model),
             .inout = .In,
         };
-        desc.query.filter.terms[2] = flecs.term_t{
+        desc.query.terms[2] = flecs.term_t{
             .id = flecs.id(Material),
             .inout = .In,
         };
-        desc.query.filter.terms[3] = flecs.term_t{
+        desc.query.terms[3] = flecs.term_t{
             .id = flecs.id(Viewport),
             .inout = .In,
-            .src = flecs.term_id_t{
+            .src = flecs.term_ref_t{
                 .id = mainViewport,
             },
         };
-        desc.query.filter.instanced = true;
+
+        //TODO: Is this right?
+        desc.query.flags = flecs.EcsIterIsInstanced;
 
         var desc2 = flecs.system_desc_t{};
         desc2.callback = flecs.SystemImpl(updateFOW).exec;
-        desc2.query.filter.terms[0] = flecs.term_t{
+        desc2.query.terms[0] = flecs.term_t{
             .id = flecs.id(Camera),
             .inout = .InOut,
-            .src = flecs.term_id_t{
+            .src = flecs.term_ref_t{
                 .id = mainCamera,
             },
         };
-        desc2.query.filter.terms[1] = flecs.term_t{
+        desc2.query.terms[1] = flecs.term_t{
             .id = flecs.id(Viewport),
             .inout = .InOut,
         };
 
-        desc2.query.filter.instanced = true;
+        desc2.query.flags = flecs.EcsIterIsInstanced;
 
-        flecs.ADD_SYSTEM(scene, "Upload Events", flecs.OnLoad, uploadEvents);
-        flecs.SYSTEM(scene, "Update FOV", flecs.PostLoad, &desc2);
+        _ = flecs.ADD_SYSTEM(scene, "Upload Events", flecs.OnLoad, uploadEvents);
+        _ = flecs.SYSTEM(scene, "Update FOV", flecs.PostLoad, &desc2);
 
         inline for (components) |comp| {
-            flecs.ADD_SYSTEM(scene, "Update " ++ @typeName(comp), flecs.PreStore, comp.onUpdate);
+            _ = flecs.ADD_SYSTEM(scene, "Update " ++ @typeName(comp), flecs.PreStore, comp.onUpdate);
         }
 
-        flecs.ADD_SYSTEM(scene, "Begin Frame", flecs.PreStore, Renderer.beginFrame);
-        flecs.ADD_SYSTEM(scene, "Transfer Data", flecs.PreStore, Renderer.updateData);
+        _ = flecs.ADD_SYSTEM(scene, "Begin Frame", flecs.PreStore, Renderer.beginFrame);
+        _ = flecs.ADD_SYSTEM(scene, "Transfer Data", flecs.PreStore, Renderer.updateData);
 
-        flecs.ADD_SYSTEM(scene, "Start Rendering", flecs.OnStore, Renderer.startRendering);
-        flecs.SYSTEM(scene, "Render", flecs.OnStore, &desc);
-        flecs.ADD_SYSTEM(scene, "Stop Rendering", flecs.OnStore, Renderer.stopRendering);
+        _ = flecs.ADD_SYSTEM(scene, "Start Rendering", flecs.OnStore, Renderer.startRendering);
+        _ = flecs.SYSTEM(scene, "Render", flecs.OnStore, &desc);
+        _ = flecs.ADD_SYSTEM(scene, "Stop Rendering", flecs.OnStore, Renderer.stopRendering);
 
-        flecs.ADD_SYSTEM(scene, "End Frame", core.Pipeline.postStore, Renderer.endFrame);
-        flecs.ADD_SYSTEM(scene, "Clear Events", core.Pipeline.postStore, clearEvents);
+        _ = flecs.ADD_SYSTEM(scene, "End Frame", core.Pipeline.postStore, Renderer.endFrame);
+        _ = flecs.ADD_SYSTEM(scene, "Clear Events", core.Pipeline.postStore, clearEvents);
 
         InputState.mouseX = viewport.getMousePosition()[0];
         InputState.mouseY = viewport.getMousePosition()[1];
@@ -152,7 +154,7 @@ pub const Graphics = struct {
         }
 
         shaders.deinit();
-        gfx.deinit();
+        try gfx.deinit();
         glfw.terminate();
     }
 

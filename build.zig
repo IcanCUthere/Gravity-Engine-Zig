@@ -27,9 +27,6 @@ pub fn build(b: *std.Build) void {
         .use_double_precision = false,
         .enable_cross_platform_determinism = true,
     });
-    const vkzig = b.dependency("vulkan_zig", .{
-        .registry = @as([]const u8, b.pathFromRoot("libs/vulkan//vk.xml")),
-    });
     const zmesh = b.dependency("zmesh", .{});
     const zstbi = b.dependency("zstbi", .{});
     const zflecs = b.dependency("zflecs", .{});
@@ -69,7 +66,6 @@ pub fn build(b: *std.Build) void {
     graphicsModule.addImport("zshaderc", zshaderc.module("root"));
     graphicsModule.addImport("CoreModule", coreModule);
     graphicsModule.addImport("util", utils);
-    graphicsModule.addImport("vulkan", vkzig.module("vulkan-zig"));
     graphicsModule.addIncludePath(b.path("libs/vulkan/"));
     graphicsModule.addCSourceFile(.{
         .file = b.path("libs/vulkan/vk_mem_alloc.cpp"),
@@ -134,7 +130,6 @@ pub fn build(b: *std.Build) void {
         cmp.linkLibrary(zgui.artifact("imgui"));
 
         //Not needed, but helps zls
-        cmp.root_module.addImport("vulkan", vkzig.module("vulkan-zig"));
         cmp.root_module.addIncludePath(b.path("libs/vulkan/"));
 
         cmp.root_module.addImport("zglfw", zglfw.module("root"));

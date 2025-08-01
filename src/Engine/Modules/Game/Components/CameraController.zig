@@ -20,8 +20,8 @@ pub const CameraController = struct {
     moveForward: bool = false,
     moveBackward: bool = false,
 
-    deltaMousePos: math.Vec = math.videntity(),
-    mouseSpeed: math.Vec = @splat(0.1),
+    deltaMousePos: math.simd.Vec = math.videntity(),
+    mouseSpeed: math.simd.Vec = @splat(0.1),
 
     pub fn register(scene: *flecs.world_t) void {
         flecs.COMPONENT(scene, Self);
@@ -32,15 +32,15 @@ pub const CameraController = struct {
 
         var moveSystem = flecs.system_desc_t{};
         moveSystem.callback = flecs.SystemImpl(onUpdate).exec;
-        moveSystem.query.filter.terms[0] = .{ .id = flecs.id(core.Transform), .inout = .InOut };
-        moveSystem.query.filter.terms[1] = .{ .id = flecs.id(Self), .inout = .In };
-        flecs.SYSTEM(scene, "Move Camera", flecs.OnUpdate, &moveSystem);
+        moveSystem.query.terms[0] = .{ .id = flecs.id(core.Transform), .inout = .InOut };
+        moveSystem.query.terms[1] = .{ .id = flecs.id(Self), .inout = .In };
+        _ = flecs.SYSTEM(scene, "Move Camera", flecs.OnUpdate, &moveSystem);
 
         var eventSystem = flecs.system_desc_t{};
         eventSystem.callback = flecs.SystemImpl(onEvent).exec;
-        eventSystem.query.filter.terms[0] = .{ .id = flecs.id(Self), .inout = .InOut };
+        eventSystem.query.terms[0] = .{ .id = flecs.id(Self), .inout = .InOut };
 
-        flecs.SYSTEM(scene, "Update Controllers", flecs.PostLoad, &eventSystem);
+        _ = flecs.SYSTEM(scene, "Update Controllers", flecs.PostLoad, &eventSystem);
     }
 
     pub fn getPrefab() flecs.entity_t {
@@ -49,7 +49,7 @@ pub const CameraController = struct {
 
     pub fn init() Self {}
 
-    pub fn deinit(_: Self) void {}
+    pub fn deinit(_: Self) !void {}
 
     pub fn onEvent(_: *flecs.iter_t, controllers: []Self) void {
         const input = graphics.InputState;
@@ -106,15 +106,15 @@ pub const CameraController = struct {
         defer tracy_zone.End();
 
         for (cameras, controllers) |*camera, controller| {
-            const deltaSplat: math.Vec = @splat(it.delta_time);
-            const negativeOne: math.Vec = @splat(-1.0);
-            const deltaSpeed = math.splat(math.Vec, controller.speed) * deltaSplat;
+            const deltaSplat: math.simd.Vec = @splat(it.delta_time);
+            const negativeOne: math.simd.Vec = @splat(-1.0);
+            const deltaSpeed = math.simd.splat(math.simd.Vec, controller.speed) * deltaSplat;
 
             const upVector = core.Transform.getWorldUpVector();
             const rightVector = camera.getLocalRightVectorLocked(false, true, false);
             const forwardVector = camera.getLocalForwardVectorLocked(false, true, false);
 
-            var moveDirection: math.Vec = math.vzero();
+            var moveDirection: math.simd.Vec = math.vzero();
 
             if (controller.moveUp) {
                 moveDirection += upVector * negativeOne;
@@ -135,13 +135,13 @@ pub const CameraController = struct {
                 moveDirection += forwardVector * negativeOne;
             }
 
-            if (math.length3(moveDirection)[0] > math.roundingError) {
-                moveDirection = util.math.normalize3(moveDirection);
+            if (math.simd.length3(moveDirection)[0] > math.roundingError) {
+                moveDirection = util.math.simd.normalize3(moveDirection);
                 camera.localPosition += moveDirection * deltaSpeed;
-                camera.translationMatrix = math.translationV(camera.localPosition);
+                camera.translationMatrix = math.simd.translationV(camera.localPosition);
             }
 
-            if (math.length2(controller.deltaMousePos)[0] > math.roundingError) {
+            if (math.simd.length2(controller.deltaMousePos)[0] > math.roundingError) {
                 camera.localRotation += controller.deltaMousePos * controller.mouseSpeed;
                 camera.localRotation[0] = math.clamp(
                     camera.localRotation[0],

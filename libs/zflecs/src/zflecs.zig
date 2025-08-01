@@ -2719,14 +2719,14 @@ pub fn OBSERVER(
 ///     const c2 = ecs.field(it, Velocity, 1).?;
 ///     move_system(c1, c2);//probably inlined
 // }
-fn SystemImpl(comptime fn_system: anytype) type {
+pub fn SystemImpl(comptime fn_system: anytype) type {
     const fn_type = @typeInfo(@TypeOf(fn_system));
     if (fn_type.@"fn".params.len == 0) {
         @compileError("System need at least one parameter");
     }
 
     return struct {
-        fn exec(it: *iter_t) callconv(.C) void {
+        pub fn exec(it: *iter_t) callconv(.C) void {
             const ArgsTupleType = std.meta.ArgsTuple(@TypeOf(fn_system));
             var args_tuple: ArgsTupleType = undefined;
 
@@ -2749,7 +2749,12 @@ fn SystemImpl(comptime fn_system: anytype) type {
             // For example, on Windows crashes inside fn_system are attributed
             // to this @call, and it is not possible to set breakpoints on code
             // inside fn_system.
-            _ = @call(.auto, fn_system, args_tuple);
+            const returnType = @typeInfo(@TypeOf(fn_system)).@"fn".return_type.?;
+            const returnInfo = @typeInfo(returnType);
+            switch (returnInfo) {
+                .error_union => _ = @call(.always_inline, fn_system, args_tuple) catch |err| std.log.info("Query error {} using function {s}", .{ err, @typeName(@TypeOf(fn_system)) }),
+                else => _ = @call(.always_inline, fn_system, args_tuple),
+            }
         }
     };
 }
@@ -3162,7 +3167,6 @@ pub fn new_w_pair(world: *world_t, first: entity_t, second: entity_t) entity_t {
 pub fn delete_children(world: *world_t, parent: entity_t) void {
     delete_with(world, make_pair(ChildOf, parent));
 }
-
 
 //--------------------------------------------------------------------------------------------------
 //

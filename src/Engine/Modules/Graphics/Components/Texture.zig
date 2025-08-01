@@ -49,140 +49,129 @@ pub const Texture = struct {
             .baseImage = image,
         };
 
-        self.image = try gfx.createImage(gfx.vkAllocator, &gfx.ImageCreateInfo{
-            .image_type = .@"2d",
-            .format = .r8g8b8a8_srgb,
-            .extent = .{
-                .width = self.baseImage.width,
-                .height = self.baseImage.height,
-                .depth = 1,
-            },
-            .mip_levels = 1,
-            .array_layers = 1,
-            .samples = .{
-                .@"1_bit" = true,
-            },
-            .tiling = .optimal,
-            .initial_layout = .undefined,
-            .usage = .{
-                .transfer_dst_bit = true,
-                .sampled_bit = true,
-            },
-            .sharing_mode = .exclusive,
-        }, &gfx.AllocationCreateInfo{
-            .usage = gfx.vma.VMA_MEMORY_USAGE_GPU_ONLY,
-        });
-
-        self.imageView = try gfx.device.createImageView(&gfx.ImageViewCreateInfo{
-            .image = self.image.image,
-            .view_type = .@"2d",
-            .format = .r8g8b8a8_srgb,
-            .components = .{
-                .a = .a,
-                .r = .r,
-                .g = .g,
-                .b = .b,
-            },
-            .subresource_range = gfx.ImageSubresourceRange{
-                .aspect_mask = .{
-                    .color_bit = true,
+        self.image = try gfx.createImage(
+            gfx.vkAllocator,
+            &gfx.ImageCreateInfo{
+                .imageType = .@"2d",
+                .format = .R8g8b8a8Srgb,
+                .extent = .{
+                    .width = self.baseImage.width,
+                    .height = self.baseImage.height,
+                    .depth = 1,
                 },
-                .base_array_layer = 0,
-                .layer_count = 1,
-                .base_mip_level = 0,
-                .level_count = 1,
+                .mipLevels = 1,
+                .arrayLayers = 1,
+                .samples = .@"1Bit",
+                .tiling = .Optimal,
+                .initialLayout = .Undefined,
+                .usage = gfx.toFlags(&[_]gfx.ImageUsageFlagBits{ .TransferDstBit, .SampledBit }),
+                .sharingMode = .Exclusive,
+                .queueFamilyIndexCount = 0,
+                .pQueueFamilyIndices = null,
             },
-        }, null);
+            &gfx.AllocationCreateInfo{
+                .usage = gfx.vma.VMA_MEMORY_USAGE_GPU_ONLY,
+            },
+        );
 
-        self.sampler = try gfx.device.createSampler(&gfx.SamplerCreateInfo{
-            .mag_filter = .linear,
-            .min_filter = .linear,
-            .mipmap_mode = .linear,
-            .address_mode_u = .repeat,
-            .address_mode_v = .repeat,
-            .address_mode_w = .repeat,
-            .anisotropy_enable = gfx.TRUE,
-            .max_anisotropy = 1.0,
-            .compare_enable = gfx.TRUE,
-            .compare_op = gfx.CompareOp.always,
-            .min_lod = 0.0,
-            .max_lod = 0.0,
-            .mip_lod_bias = 0.0,
-            .border_color = .float_opaque_black,
-            .unnormalized_coordinates = gfx.FALSE,
-        }, null);
+        self.imageView = try gfx.CreateImageView(
+            &gfx.ImageViewCreateInfo{
+                .image = self.image.image,
+                .viewType = .@"2d",
+                .format = .R8g8b8a8Srgb,
+                .components = .{
+                    .a = .A,
+                    .r = .R,
+                    .g = .G,
+                    .b = .B,
+                },
+                .subresourceRange = gfx.ImageSubresourceRange{
+                    .aspectMask = gfx.toFlags(&[_]gfx.ImageAspectFlagBits{.ColorBit}),
+                    .baseArrayLayer = 0,
+                    .layerCount = 1,
+                    .baseMipLevel = 0,
+                    .levelCount = 1,
+                },
+            },
+        );
+
+        self.sampler = try gfx.CreateSampler(
+            &gfx.SamplerCreateInfo{
+                .magFilter = .Linear,
+                .minFilter = .Linear,
+                .mipmapMode = .Linear,
+                .addressModeU = .Repeat,
+                .addressModeV = .Repeat,
+                .addressModeW = .Repeat,
+                .anisotropyEnable = gfx.TRUE,
+                .maxAnisotropy = 1.0,
+                .compareEnable = gfx.TRUE,
+                .compareOp = gfx.CompareOp.Always,
+                .minLod = 0.0,
+                .maxLod = 0.0,
+                .mipLodBias = 0.0,
+                .borderColor = .FloatOpaqueBlack,
+                .unnormalizedCoordinates = gfx.FALSE,
+            },
+        );
 
         try Renderer.addStagingData(Renderer.StagingData{
             .dstImage = self.image,
             .data = self.baseImage.data,
             .preImageBarrier = gfx.ImageMemoryBarrier{
                 .image = self.image.image,
-                .src_access_mask = .{},
-                .dst_access_mask = .{
-                    .transfer_write_bit = true,
+                .srcAccessMask = gfx.toFlags(&[_]gfx.AccessFlagBits{}),
+                .dstAccessMask = gfx.toFlags(&[_]gfx.AccessFlagBits{.TransferWriteBit}),
+                .oldLayout = .Undefined,
+                .newLayout = .TransferDstOptimal,
+                .subresourceRange = .{
+                    .aspectMask = gfx.toFlags(&[_]gfx.ImageAspectFlagBits{.ColorBit}),
+                    .baseArrayLayer = 0,
+                    .layerCount = 1,
+                    .baseMipLevel = 0,
+                    .levelCount = 1,
                 },
-                .old_layout = .undefined,
-                .new_layout = .transfer_dst_optimal,
-                .subresource_range = .{
-                    .aspect_mask = .{
-                        .color_bit = true,
-                    },
-                    .base_array_layer = 0,
-                    .layer_count = 1,
-                    .base_mip_level = 0,
-                    .level_count = 1,
-                },
-                .dst_queue_family_index = gfx.QUEUE_FAMILY_IGNORED,
-                .src_queue_family_index = gfx.QUEUE_FAMILY_IGNORED,
+                .dstQueueFamilyIndex = gfx.queueFamilyIgnored,
+                .srcQueueFamilyIndex = gfx.queueFamilyIgnored,
             },
             .bufferToImage = gfx.BufferImageCopy{
-                .buffer_offset = undefined,
-                .buffer_image_height = undefined,
-                .buffer_row_length = undefined,
-                .image_offset = .{
+                .bufferOffset = undefined,
+                .bufferImageHeight = undefined,
+                .bufferRowLength = undefined,
+                .imageOffset = .{
                     .x = 0,
                     .y = 0,
                     .z = 0,
                 },
-                .image_extent = .{
+                .imageExtent = .{
                     .width = self.baseImage.width,
                     .height = self.baseImage.height,
                     .depth = 1,
                 },
-                .image_subresource = .{
-                    .aspect_mask = .{
-                        .color_bit = true,
-                    },
-                    .base_array_layer = 0,
-                    .layer_count = 1,
-                    .mip_level = 0,
+                .imageSubresource = .{
+                    .aspectMask = gfx.toFlags(&[_]gfx.ImageAspectFlagBits{.ColorBit}),
+                    .baseArrayLayer = 0,
+                    .layerCount = 1,
+                    .mipLevel = 0,
                 },
             },
             .postBarrier = Renderer.PipelineBarrierData{
-                .firstUseStages = .{
-                    .fragment_shader_bit = true,
-                },
+                .firstUseStages = gfx.toFlags(&[_]gfx.PipelineStageFlagBits{.FragmentShaderBit}),
                 .postImageBarrier = gfx.ImageMemoryBarrier{
                     .image = self.image.image,
-                    .src_access_mask = .{
-                        .transfer_write_bit = true,
+                    .srcAccessMask = gfx.toFlags(&[_]gfx.AccessFlagBits{.TransferWriteBit}),
+                    .dstAccessMask = gfx.toFlags(&[_]gfx.AccessFlagBits{.ShaderReadBit}),
+                    .oldLayout = .TransferDstOptimal,
+                    .newLayout = .ShaderReadOnlyOptimal,
+                    .subresourceRange = .{
+                        .aspectMask = gfx.toFlags(&[_]gfx.ImageAspectFlagBits{.ColorBit}),
+                        .baseArrayLayer = 0,
+                        .layerCount = 1,
+                        .baseMipLevel = 0,
+                        .levelCount = 1,
                     },
-                    .dst_access_mask = .{
-                        .shader_read_bit = true,
-                    },
-                    .old_layout = .transfer_dst_optimal,
-                    .new_layout = .shader_read_only_optimal,
-                    .subresource_range = .{
-                        .aspect_mask = .{
-                            .color_bit = true,
-                        },
-                        .base_array_layer = 0,
-                        .layer_count = 1,
-                        .base_mip_level = 0,
-                        .level_count = 1,
-                    },
-                    .dst_queue_family_index = gfx.QUEUE_FAMILY_IGNORED,
-                    .src_queue_family_index = gfx.QUEUE_FAMILY_IGNORED,
+                    .dstQueueFamilyIndex = gfx.queueFamilyIgnored,
+                    .srcQueueFamilyIndex = gfx.queueFamilyIgnored,
                 },
             },
         });
@@ -190,12 +179,12 @@ pub const Texture = struct {
         return self;
     }
 
-    pub fn deinit(self: *Texture) void {
+    pub fn deinit(self: *Texture) !void {
         const tracy_zone = tracy.ZoneNC(@src(), "Deinit texture", 0x00_ff_ff_00);
         defer tracy_zone.End();
 
-        gfx.device.destroySampler(self.sampler, null);
-        gfx.device.destroyImageView(self.imageView, null);
+        try gfx.DestroySampler(self.sampler);
+        try gfx.DestroyImageView(self.imageView);
         gfx.destroyImage(gfx.vkAllocator, self.image);
     }
 

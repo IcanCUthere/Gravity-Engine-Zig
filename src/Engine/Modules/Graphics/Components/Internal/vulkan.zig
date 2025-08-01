@@ -2,7 +2,7 @@ const util = @import("util");
 const mem = util.mem;
 
 const glfw = @import("zglfw");
-const vk = @import("vulkan");
+const vk = @import("vulkanBindings.zig");
 pub const vma = @cImport({
     @cInclude("vk_mem_alloc.cpp");
 });
@@ -13,10 +13,15 @@ pub inline fn glfwGetInstanceProcAddress(handle: vk.Instance, name: [*:0]const u
     return @ptrCast(glfw.getInstanceProcAddress(@ptrFromInt(@intFromEnum(handle)), name));
 }
 
-pub inline fn createSurface(instance: InstProxy, window: *glfw.Window) !vk.SurfaceKHR {
+pub inline fn createSurface(window: *glfw.Window) !vk.SurfaceKHR {
     var surface: vk.SurfaceKHR = undefined;
 
-    if (@as(vk.Result, @enumFromInt(glfw.createWindowSurface(@ptrFromInt(@intFromEnum(instance.handle)), window, null, &surface))) != vk.Result.success) {
+    if (@as(vk.Result, @enumFromInt(glfw.createWindowSurface(
+        vk.gInstance,
+        window,
+        null,
+        &surface,
+    ))) != vk.Result.SUCCESS) {
         return error.CreateSurfaceError;
     }
 
@@ -39,47 +44,47 @@ pub const BufferAllocation = struct {
     allocation: Allocation,
 };
 
-pub inline fn createAllocator(instance: InstProxy, device: DevProxy, physDev: vk.PhysicalDevice, apiVersion: u32, bd: vk.BaseDispatch) !Allocator {
+pub inline fn createAllocator(instance: vk.Instance, device: vk.Device, physDev: vk.PhysicalDevice, apiVersion: u32) !Allocator {
     var allocator: vma.VmaAllocator = undefined;
 
     const res = vma.vmaCreateAllocator(&.{
-        .instance = @ptrFromInt(@intFromEnum(instance.handle)),
-        .device = @ptrFromInt(@intFromEnum(device.handle)),
-        .physicalDevice = @ptrFromInt(@intFromEnum(physDev)),
+        .instance = @ptrCast(instance),
+        .device = @ptrCast(device),
+        .physicalDevice = @ptrCast(physDev),
         .vulkanApiVersion = apiVersion,
         .pVulkanFunctions = &vma.VmaVulkanFunctions{
-            .vkGetInstanceProcAddr = @ptrCast(bd.dispatch.vkGetInstanceProcAddr),
+            .vkGetInstanceProcAddr = @ptrCast(vk.vkGetInstanceProcAddr),
 
-            .vkGetDeviceProcAddr = @ptrCast(instance.wrapper.dispatch.vkGetDeviceProcAddr),
-            .vkGetPhysicalDeviceProperties = @ptrCast(instance.wrapper.dispatch.vkGetPhysicalDeviceProperties),
-            .vkGetPhysicalDeviceMemoryProperties = @ptrCast(instance.wrapper.dispatch.vkGetPhysicalDeviceMemoryProperties),
-            .vkGetPhysicalDeviceMemoryProperties2KHR = @ptrCast(instance.wrapper.dispatch.vkGetPhysicalDeviceMemoryProperties2),
+            .vkGetDeviceProcAddr = @ptrCast(vk.vkGetDeviceProcAddr),
+            .vkGetPhysicalDeviceProperties = @ptrCast(vk.vkGetPhysicalDeviceProperties),
+            .vkGetPhysicalDeviceMemoryProperties = @ptrCast(vk.vkGetPhysicalDeviceMemoryProperties),
+            .vkGetPhysicalDeviceMemoryProperties2KHR = @ptrCast(vk.vkGetPhysicalDeviceMemoryProperties2),
 
-            .vkAllocateMemory = @ptrCast(device.wrapper.dispatch.vkAllocateMemory),
-            .vkFreeMemory = @ptrCast(device.wrapper.dispatch.vkFreeMemory),
-            .vkBindBufferMemory = @ptrCast(device.wrapper.dispatch.vkBindBufferMemory),
-            .vkBindBufferMemory2KHR = @ptrCast(device.wrapper.dispatch.vkBindBufferMemory2),
-            .vkBindImageMemory = @ptrCast(device.wrapper.dispatch.vkBindImageMemory),
-            .vkBindImageMemory2KHR = @ptrCast(device.wrapper.dispatch.vkBindImageMemory2),
-            .vkCmdCopyBuffer = @ptrCast(device.wrapper.dispatch.vkCmdCopyBuffer),
-            .vkCreateBuffer = @ptrCast(device.wrapper.dispatch.vkCreateBuffer),
-            .vkDestroyBuffer = @ptrCast(device.wrapper.dispatch.vkDestroyBuffer),
-            .vkCreateImage = @ptrCast(device.wrapper.dispatch.vkCreateImage),
-            .vkDestroyImage = @ptrCast(device.wrapper.dispatch.vkDestroyImage),
-            .vkGetBufferMemoryRequirements = @ptrCast(device.wrapper.dispatch.vkGetBufferMemoryRequirements),
-            .vkGetBufferMemoryRequirements2KHR = @ptrCast(device.wrapper.dispatch.vkGetBufferMemoryRequirements2),
-            .vkGetImageMemoryRequirements = @ptrCast(device.wrapper.dispatch.vkGetImageMemoryRequirements),
-            .vkGetImageMemoryRequirements2KHR = @ptrCast(device.wrapper.dispatch.vkGetImageMemoryRequirements2),
-            .vkMapMemory = @ptrCast(device.wrapper.dispatch.vkMapMemory),
-            .vkUnmapMemory = @ptrCast(device.wrapper.dispatch.vkUnmapMemory),
-            .vkInvalidateMappedMemoryRanges = @ptrCast(device.wrapper.dispatch.vkInvalidateMappedMemoryRanges),
-            .vkFlushMappedMemoryRanges = @ptrCast(device.wrapper.dispatch.vkFlushMappedMemoryRanges),
-            //.vkGetDeviceBufferMemoryRequirements = @ptrCast(device.wrapper.dispatch.vkGetDeviceBufferMemoryRequirements),
-            //.vkGetDeviceImageMemoryRequirements = @ptrCast(device.wrapper.dispatch.vkGetDeviceImageMemoryRequirements),
+            .vkAllocateMemory = @ptrCast(vk.vkAllocateMemory),
+            .vkFreeMemory = @ptrCast(vk.vkFreeMemory),
+            .vkBindBufferMemory = @ptrCast(vk.vkBindBufferMemory),
+            .vkBindBufferMemory2KHR = @ptrCast(vk.vkBindBufferMemory2),
+            .vkBindImageMemory = @ptrCast(vk.vkBindImageMemory),
+            .vkBindImageMemory2KHR = @ptrCast(vk.vkBindImageMemory2),
+            .vkCmdCopyBuffer = @ptrCast(vk.vkCmdCopyBuffer),
+            .vkCreateBuffer = @ptrCast(vk.vkCreateBuffer),
+            .vkDestroyBuffer = @ptrCast(vk.vkDestroyBuffer),
+            .vkCreateImage = @ptrCast(vk.vkCreateImage),
+            .vkDestroyImage = @ptrCast(vk.vkDestroyImage),
+            .vkGetBufferMemoryRequirements = @ptrCast(vk.vkGetBufferMemoryRequirements),
+            .vkGetBufferMemoryRequirements2KHR = @ptrCast(vk.vkGetBufferMemoryRequirements2),
+            .vkGetImageMemoryRequirements = @ptrCast(vk.vkGetImageMemoryRequirements),
+            .vkGetImageMemoryRequirements2KHR = @ptrCast(vk.vkGetImageMemoryRequirements2),
+            .vkMapMemory = @ptrCast(vk.vkMapMemory),
+            .vkUnmapMemory = @ptrCast(vk.vkUnmapMemory),
+            .vkInvalidateMappedMemoryRanges = @ptrCast(vk.vkInvalidateMappedMemoryRanges),
+            .vkFlushMappedMemoryRanges = @ptrCast(vk.vkFlushMappedMemoryRanges),
+            //.vkGetDeviceBufferMemoryRequirements = @ptrCast(vk.vkGetDeviceBufferMemoryRequirements),
+            //.vkGetDeviceImageMemoryRequirements = @ptrCast(vk.vkGetDeviceImageMemoryRequirements),
         },
     }, &allocator);
 
-    if (@as(vk.Result, @enumFromInt(res)) != vk.Result.success) {
+    if (@as(vk.Result, @enumFromInt(res)) != vk.Result.SUCCESS) {
         return error.AllocatorCreateError;
     }
 
@@ -102,7 +107,7 @@ pub inline fn createImage(allocator: vma.VmaAllocator, imageCreateInfo: *const v
         @ptrCast(&im),
         &all,
         &allInfo,
-    ) != @intFromEnum(vk.Result.success)) {
+    ) != @intFromEnum(vk.Result.SUCCESS)) {
         return error.ImageAllocationFailed;
     }
 
@@ -111,7 +116,7 @@ pub inline fn createImage(allocator: vma.VmaAllocator, imageCreateInfo: *const v
 }
 
 pub inline fn destroyImage(allocator: Allocator, image: ImageAllocation) void {
-    vma.vmaDestroyImage(allocator, @ptrFromInt(@intFromEnum(image.image)), image.allocation);
+    vma.vmaDestroyImage(allocator, @ptrCast(image.image), image.allocation);
 }
 
 pub inline fn createBuffer(allocator: Allocator, bufferCreateInfo: *const vk.BufferCreateInfo, allocationCreateInfo: *const AllocationCreateInfo) !BufferAllocation {
@@ -126,7 +131,7 @@ pub inline fn createBuffer(allocator: Allocator, bufferCreateInfo: *const vk.Buf
         @ptrCast(&buf),
         &all,
         &allInfo,
-    ) != @intFromEnum(vk.Result.success)) {
+    ) != @intFromEnum(vk.Result.SUCCESS)) {
         return error.BufferAllocationFailed;
     }
 
@@ -134,12 +139,12 @@ pub inline fn createBuffer(allocator: Allocator, bufferCreateInfo: *const vk.Buf
 }
 
 pub inline fn destroyBuffer(allocator: Allocator, buffer: BufferAllocation) void {
-    vma.vmaDestroyBuffer(allocator, @ptrFromInt(@intFromEnum(buffer.buffer)), buffer.allocation);
+    vma.vmaDestroyBuffer(allocator, @ptrCast(buffer.buffer), buffer.allocation);
 }
 
 pub inline fn uploadMemory(allocator: vma.VmaAllocator, buffer: BufferAllocation, datas: []const []const u8, initialOffset: u32) !u32 {
     var deviceMemory: *anyopaque = undefined;
-    if (vma.vmaMapMemory(allocator, buffer.allocation, @ptrCast(&deviceMemory)) != @intFromEnum(vk.Result.success)) {
+    if (vma.vmaMapMemory(allocator, buffer.allocation, @ptrCast(&deviceMemory)) != @intFromEnum(vk.Result.SUCCESS)) {
         return error.MemoryMapFailed;
     }
 
@@ -157,7 +162,7 @@ pub inline fn uploadMemory(allocator: vma.VmaAllocator, buffer: BufferAllocation
 
 pub inline fn startReadMemory(allocator: vma.VmaAllocator, buffer: BufferAllocation, size: usize) ![]u8 {
     var deviceMemory: *anyopaque = undefined;
-    if (vma.vmaMapMemory(allocator, buffer.allocation, @ptrCast(&deviceMemory)) != @intFromEnum(vk.Result.success)) {
+    if (vma.vmaMapMemory(allocator, buffer.allocation, @ptrCast(&deviceMemory)) != @intFromEnum(vk.Result.SUCCESS)) {
         return error.MemoryMapFailed;
     }
 
@@ -271,6 +276,3 @@ const apis: []const vk.ApiInfo = &.{
         },
     },
 };
-
-pub const InstProxy = vk.InstanceProxy(apis);
-pub const DevProxy = vk.DeviceProxy(apis);
