@@ -12,19 +12,23 @@ const Renderer = @import("Renderer.zig").Renderer;
 
 pub const Camera = struct {
     const Self = @This();
-    var Prefab: flecs.entity_t = undefined;
+    pub var Prefab: flecs.entity_t = undefined;
 
     projectionMatrix: util.math.simd.Mat = util.math.simd.identity(),
 
     cameraMatricesUniform: gfx.BufferAllocation = undefined,
 
-    pub fn register(scene: *flecs.world_t) void {
-        flecs.COMPONENT(scene, Self);
+    pub fn setTraits(scene: *flecs.world_t) void {
+        flecs.add_pair(
+            scene,
+            flecs.id(Self),
+            flecs.OnInstantiate,
+            flecs.Override,
+        );
+    }
 
-        Prefab = flecs.new_prefab(scene, "CameraPrefab");
+    pub fn setPrefab(scene: *flecs.world_t) void {
         flecs.add_pair(scene, Prefab, flecs.IsA, core.Transform.getPrefab());
-        _ = flecs.set(scene, Prefab, Self, .{});
-        flecs.override(scene, Prefab, Self);
     }
 
     pub fn getPrefab() flecs.entity_t {

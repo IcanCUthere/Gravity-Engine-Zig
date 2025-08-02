@@ -5,7 +5,7 @@ const flecs = @import("zflecs");
 
 pub const Transform = struct {
     const Self = @This();
-    var Prefab: flecs.entity_t = undefined;
+    pub var Prefab: flecs.entity_t = undefined;
 
     worldPosition: math.simd.Vec = math.videntity(),
     worldRotation: math.simd.Vec = math.videntity(),
@@ -18,13 +18,16 @@ pub const Transform = struct {
     translationMatrix: math.simd.Mat = math.simd.identity(),
     rotationMatrix: math.simd.Mat = math.simd.identity(),
 
-    pub fn register(scene: *flecs.world_t) void {
-        flecs.COMPONENT(scene, Self);
-
-        Prefab = flecs.new_prefab(scene, "TransformPrefab");
-        _ = flecs.set(scene, Prefab, Self, .{});
-        flecs.override(scene, Prefab, Self);
+    pub fn setTraits(scene: *flecs.world_t) void {
+        flecs.add_pair(
+            scene,
+            flecs.id(Self),
+            flecs.OnInstantiate,
+            flecs.Override,
+        );
     }
+
+    pub fn setPrefab(_: *flecs.world_t) void {}
 
     pub fn init() Self {}
 

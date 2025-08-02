@@ -14,7 +14,7 @@ const Texture = @import("Texture.zig").Texture;
 pub const Model = struct {
     const Self = @This();
     var _scene: *flecs.world_t = undefined;
-    var Prefab: flecs.entity_t = undefined;
+    pub var Prefab: flecs.entity_t = undefined;
 
     mesh: *const core.io.Mesh = undefined,
 
@@ -22,41 +22,19 @@ pub const Model = struct {
     vertexBuffer: gfx.BufferAllocation = undefined,
     indexBuffer: gfx.BufferAllocation = undefined,
 
-    pub fn register(scene: *flecs.world_t) void {
+    pub fn setTraits(scene: *flecs.world_t) void {
         _scene = scene;
-
-        flecs.COMPONENT(scene, Self);
-
-        flecs.add_pair(scene, flecs.id(Self), flecs.OnInstantiate, flecs.Inherit);
-
-        Prefab = flecs.new_prefab(scene, "ModelPrefab");
-        flecs.add_pair(scene, Prefab, flecs.IsA, core.Transform.getPrefab());
-        flecs.add(scene, Prefab, Self);
-        flecs.add(scene, Prefab, Texture);
-
-        var setObsDesc = flecs.observer_desc_t{
-            .query = flecs.query_desc_t{
-                .terms = [1]flecs.term_t{
-                    flecs.term_t{
-                        .id = flecs.id(Self),
-                    },
-                } ++ ([1]flecs.term_t{.{}} ** 31),
-            },
-            .events = [_]u64{flecs.OnSet} ++ ([1]u64{0} ** 7),
-            .callback = flecs.SystemImpl(onEvent).exec,
-        };
-
-        _ = flecs.OBSERVER(scene, "ModelComponentEvent", &setObsDesc);
+        flecs.add_pair(
+            scene,
+            flecs.id(Self),
+            flecs.OnInstantiate,
+            flecs.Inherit,
+        );
     }
 
-    fn onEvent(it: *flecs.iter_t, models: []Model) !void {
-        const event: flecs.entity_t = it.event;
-
-        for (models) |*m| {
-            if (event == flecs.OnRemove) {
-                try m.deinit();
-            }
-        }
+    pub fn setPrefab(scene: *flecs.world_t) void {
+        flecs.add_pair(scene, Prefab, flecs.IsA, core.Transform.getPrefab());
+        flecs.add(scene, Prefab, Texture);
     }
 
     pub fn getPrefab() flecs.entity_t {

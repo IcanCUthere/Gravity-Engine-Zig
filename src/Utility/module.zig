@@ -1,33 +1,62 @@
 const flecs = @import("zflecs");
 const log = @import("log.zig");
 
-pub fn cleanUpComponent(T: type, scene: *flecs.world_t) !void {
+pub fn registerComponents(scene: *flecs.world_t, components: []const type) !void {
+    inline for (components) |component| {
+        try registerComponent(scene, component);
+    }
+}
+
+fn registerComponent(scene: *flecs.world_t, T: type) !void {
     log.print(
-        "Deinit {s}",
+        "Register {s}",
         .{@typeName(T)},
         .Info,
         .Verbose,
         .{ .Modules = true },
     );
 
-    var queryDesc = flecs.query_desc_t{};
-    queryDesc.terms[0] = flecs.term_t{
-        .id = flecs.id(T),
-    };
+    flecs.COMPONENT(scene, T);
+    T.setTraits(scene);
+    flecs.set_hooks_id(
+        scene,
+        flecs.id(T),
+        &flecs.type_hooks_t{
+            .dtor = makeDtor(T),
+        },
+    );
 
-    const query = try flecs.query_init(scene, &queryDesc);
+    T.Prefab = flecs.new_prefab(scene, @typeName(T) ++ "Prefab");
+    flecs.add(scene, T.Prefab, T);
+    T.setPrefab(scene);
+}
 
-    var iter = flecs.query_iter(scene, query);
+pub fn unregisterComponents(scene: *flecs.world_t, components: []const type) !void {
+    inline for (components) |component| {
+        try unregisterComponent(scene, component);
+    }
+}
 
-    while (flecs.query_next(&iter)) {
-        if (flecs.field(&iter, T, 0)) |comps| {
-            if (flecs.field_is_self(&iter, 0)) {
-                for (comps) |*comp| {
-                    try comp.deinit();
-                }
+fn unregisterComponent(scene: *flecs.world_t, T: type) !void {
+    log.print(
+        "Unregister {s}",
+        .{@typeName(T)},
+        .Info,
+        .Verbose,
+        .{ .Modules = true },
+    );
+
+    flecs.remove_all(scene, flecs.id(T));
+}
+
+fn makeDtor(comptime T: type) fn (*anyopaque, i32, *const flecs.type_info_t) callconv(.c) void {
+    return struct {
+        fn dtor(ptr: *anyopaque, count: i32, _: *const flecs.type_info_t) callconv(.c) void {
+            const components: []T = @as([*]T, @alignCast(@ptrCast(ptr)))[0..@intCast(count)];
+
+            for (components) |*component| {
+                component.*.deinit() catch {}; //TODO:
             }
         }
-    }
-
-    flecs.query_fini(query);
+    }.dtor;
 }

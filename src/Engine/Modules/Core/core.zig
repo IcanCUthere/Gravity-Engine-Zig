@@ -44,9 +44,7 @@ pub const Core = struct {
         Pipeline.postStore = flecs.new_id(_scene);
         flecs.add_pair(_scene, Pipeline.postStore, flecs.DependsOn, flecs.OnStore);
 
-        inline for (components) |comp| {
-            comp.register(scene);
-        }
+        try util.module.registerComponents(scene, &components);
     }
 
     pub fn preDeinit() !void {}
@@ -55,9 +53,7 @@ pub const Core = struct {
         const tracy_zone = tracy.ZoneNC(@src(), "Core Module Deinit", 0x00_ff_ff_00);
         defer tracy_zone.End();
 
-        inline for (components) |comp| {
-            try util.module.cleanUpComponent(comp, _scene);
-        }
+        try util.module.unregisterComponents(_scene, &components);
 
         storage.deinit();
         stbi.deinit();

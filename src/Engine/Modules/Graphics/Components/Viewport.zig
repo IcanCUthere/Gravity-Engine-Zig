@@ -7,41 +7,20 @@ const tracy = @import("ztracy");
 const gfx = @import("Internal/interface.zig");
 const evnt = @import("Internal/event.zig");
 
-fn onEvent(it: *flecs.iter_t, viewports: []Viewport) !void {
-    const event: flecs.entity_t = it.event;
-
-    for (viewports) |*v| {
-        if (event == flecs.OnRemove) {
-            try v.deinit();
-        }
-    }
-}
-
 pub const Viewport = struct {
     const Self = @This();
-    var Prefab: flecs.entity_t = undefined;
+    pub var Prefab: flecs.entity_t = undefined;
 
-    pub fn register(scene: *flecs.world_t) void {
-        flecs.COMPONENT(scene, Self);
-
-        Prefab = flecs.new_prefab(scene, "Viewport");
-        _ = flecs.set(scene, Prefab, Self, .{});
-        flecs.override(scene, Prefab, Self);
-
-        var setObsDesc = flecs.observer_desc_t{
-            .query = flecs.query_desc_t{
-                .terms = [1]flecs.term_t{
-                    flecs.term_t{
-                        .id = flecs.id(Self),
-                    },
-                } ++ ([1]flecs.term_t{.{}} ** 31),
-            },
-            .events = [_]u64{flecs.OnSet} ++ ([1]u64{0} ** 7),
-            .callback = flecs.SystemImpl(onEvent).exec,
-        };
-
-        _ = flecs.OBSERVER(scene, "viewport events", &setObsDesc);
+    pub fn setTraits(scene: *flecs.world_t) void {
+        flecs.add_pair(
+            scene,
+            flecs.id(Self),
+            flecs.OnInstantiate,
+            flecs.Override,
+        );
     }
+
+    pub fn setPrefab(_: *flecs.world_t) void {}
 
     pub fn getPrefab() flecs.entity_t {
         return Prefab;

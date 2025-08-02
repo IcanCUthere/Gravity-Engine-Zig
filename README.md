@@ -2,7 +2,7 @@
 
 ## Dependencies
 - Python3
-- Zig 0.13
+- Zig 0.14
 
 ## How to run
 1. git clone

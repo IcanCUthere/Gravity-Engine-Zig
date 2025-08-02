@@ -25,9 +25,7 @@ pub const Game = struct {
 
         _scene = scene;
 
-        inline for (components) |comp| {
-            comp.register(scene);
-        }
+        try util.module.registerComponents(_scene, &components);
 
         _ = flecs.set(scene, graphics.Graphics.mainCamera, graphics.Camera, try graphics.Camera.init(
             45.0,
@@ -72,8 +70,6 @@ pub const Game = struct {
         const tracy_zone = tracy.ZoneNC(@src(), "Game Module Deinit", 0x00_ff_ff_00);
         defer tracy_zone.End();
 
-        inline for (components) |comp| {
-            try util.module.cleanUpComponent(comp, _scene);
-        }
+        try util.module.unregisterComponents(_scene, &components);
     }
 };

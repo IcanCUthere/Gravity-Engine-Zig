@@ -14,17 +14,23 @@ const Renderer = @import("Renderer.zig").Renderer;
 pub const ModelInstance = struct {
     const Self = @This();
     var _scene: *flecs.world_t = undefined;
-    var Prefab: flecs.entity_t = undefined;
+    pub var Prefab: flecs.entity_t = undefined;
 
     descriptorSet: gfx.DescriptorSet = undefined,
     modelMatrixUniform: gfx.BufferAllocation = undefined,
 
-    pub fn register(scene: *flecs.world_t) void {
-        flecs.COMPONENT(scene, Self);
-        flecs.add_pair(scene, flecs.id(Self), flecs.OnInstantiate, flecs.Inherit);
-
+    pub fn setTraits(scene: *flecs.world_t) void {
         _scene = scene;
+
+        flecs.add_pair(
+            scene,
+            flecs.id(Self),
+            flecs.OnInstantiate,
+            flecs.Inherit,
+        );
     }
+
+    pub fn setPrefab(_: *flecs.world_t) void {}
 
     pub fn new(name: [*:0]const u8, model: flecs.entity_t, position: util.math.simd.Vec) !flecs.entity_t {
         const newEntt = flecs.new_entity(_scene, name);

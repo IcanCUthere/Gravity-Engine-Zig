@@ -19,6 +19,8 @@ pub const Material = @import("Components/Material.zig").Material;
 pub const Texture = @import("Components/Texture.zig").Texture;
 pub const ModelInstance = @import("Components/ModelInstance.zig").ModelInstance;
 
+pub const ModelEntity = @import("Entities/ModelEntity.zig").ModelEntity;
+
 pub const Graphics = struct {
     pub const name: []const u8 = "graphics";
     pub const dependencies = [_][]const u8{"core"};
@@ -46,9 +48,7 @@ pub const Graphics = struct {
 
         _scene = scene;
 
-        inline for (components) |comp| {
-            comp.register(scene);
-        }
+        try util.module.registerComponents(scene, &components);
 
         mainCamera = flecs.new_entity(scene, "Main Camera");
         flecs.add_pair(scene, mainCamera, flecs.IsA, Camera.getPrefab());
@@ -149,9 +149,7 @@ pub const Graphics = struct {
         const tracy_zone = tracy.ZoneNC(@src(), "Graphics Module Deinit", 0x00_ff_ff_00);
         defer tracy_zone.End();
 
-        inline for (components) |comp| {
-            try util.module.cleanUpComponent(comp, _scene);
-        }
+        try util.module.unregisterComponents(_scene, &components);
 
         shaders.deinit();
         try gfx.deinit();

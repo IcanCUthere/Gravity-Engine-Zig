@@ -12,7 +12,7 @@ const Model = @import("Model.zig").Model;
 pub const Texture = struct {
     const Self = @This();
     var _scene: *flecs.world_t = undefined;
-    var Prefab: flecs.entity_t = undefined;
+    pub var Prefab: flecs.entity_t = undefined;
 
     baseImage: *const core.io.Image = undefined,
 
@@ -20,16 +20,18 @@ pub const Texture = struct {
     imageView: gfx.ImageView = undefined,
     sampler: gfx.Sampler = undefined,
 
-    pub fn register(scene: *flecs.world_t) void {
+    pub fn setTraits(scene: *flecs.world_t) void {
         _scene = scene;
 
-        flecs.COMPONENT(scene, Self);
-        flecs.add_pair(scene, flecs.id(Self), flecs.OnInstantiate, flecs.Inherit);
-
-        Prefab = flecs.new_prefab(scene, "TexturePrefab");
-        flecs.add(scene, Prefab, Self);
-        flecs.override(scene, Prefab, Self);
+        flecs.add_pair(
+            scene,
+            flecs.id(Self),
+            flecs.OnInstantiate,
+            flecs.Inherit,
+        );
     }
+
+    pub fn setPrefab(_: *flecs.world_t) void {}
 
     pub fn getPrefab() flecs.entity_t {
         return Prefab;

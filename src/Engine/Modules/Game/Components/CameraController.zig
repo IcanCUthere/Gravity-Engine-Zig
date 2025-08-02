@@ -9,7 +9,7 @@ const graphics = @import("GraphicsModule");
 
 pub const CameraController = struct {
     const Self = @This();
-    var Prefab: flecs.entity_t = undefined;
+    pub var Prefab: flecs.entity_t = undefined;
 
     speed: f32 = 5.0,
 
@@ -23,12 +23,13 @@ pub const CameraController = struct {
     deltaMousePos: math.simd.Vec = math.videntity(),
     mouseSpeed: math.simd.Vec = @splat(0.1),
 
-    pub fn register(scene: *flecs.world_t) void {
-        flecs.COMPONENT(scene, Self);
-
-        Prefab = flecs.new_prefab(scene, "CameraControllerComponent");
-        _ = flecs.set(scene, Prefab, Self, .{});
-        flecs.override(scene, Prefab, Self);
+    pub fn setTraits(scene: *flecs.world_t) void {
+        flecs.add_pair(
+            scene,
+            flecs.id(Self),
+            flecs.OnInstantiate,
+            flecs.Override,
+        );
 
         var moveSystem = flecs.system_desc_t{};
         moveSystem.callback = flecs.SystemImpl(onUpdate).exec;
@@ -42,6 +43,8 @@ pub const CameraController = struct {
 
         _ = flecs.SYSTEM(scene, "Update Controllers", flecs.PostLoad, &eventSystem);
     }
+
+    pub fn setPrefab(_: *flecs.world_t) void {}
 
     pub fn getPrefab() flecs.entity_t {
         return Prefab;

@@ -84,7 +84,7 @@ pub const CreateOptions = struct {
 pub const Material = struct {
     const Self = @This();
     var _scene: *flecs.world_t = undefined;
-    var Prefab: flecs.entity_t = undefined;
+    pub var Prefab: flecs.entity_t = undefined;
 
     vertexModule: gfx.ShaderModule = undefined,
     fragmentModule: gfx.ShaderModule = undefined,
@@ -103,15 +103,18 @@ pub const Material = struct {
     pipelineLayout: gfx.PipelineLayout = undefined,
     pipeline: gfx.Pipeline = undefined,
 
-    pub fn register(scene: *flecs.world_t) void {
+    pub fn setTraits(scene: *flecs.world_t) void {
         _scene = scene;
 
-        flecs.COMPONENT(scene, Self);
-        flecs.add_pair(scene, flecs.id(Self), flecs.OnInstantiate, flecs.Inherit);
-
-        Prefab = flecs.new_prefab(scene, "MaterialPrefab");
-        flecs.add(scene, Prefab, Self);
+        flecs.add_pair(
+            scene,
+            flecs.id(Self),
+            flecs.OnInstantiate,
+            flecs.Inherit,
+        );
     }
+
+    pub fn setPrefab(_: *flecs.world_t) void {}
 
     pub fn getPrefab() flecs.entity_t {
         return Prefab;
