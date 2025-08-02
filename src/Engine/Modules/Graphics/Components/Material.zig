@@ -107,6 +107,7 @@ pub const Material = struct {
         _scene = scene;
 
         flecs.COMPONENT(scene, Self);
+        flecs.add_pair(scene, flecs.id(Self), flecs.OnInstantiate, flecs.Inherit);
 
         Prefab = flecs.new_prefab(scene, "MaterialPrefab");
         flecs.add(scene, Prefab, Self);
@@ -143,14 +144,14 @@ pub const Material = struct {
             .pCode = @ptrCast(@alignCast(fragmentCode.ptr)),
         });
 
-        const globalPoolSizes = [_]gfx.DescriptorPoolSize{
+        const materialPoolSizes = [_]gfx.DescriptorPoolSize{
             gfx.DescriptorPoolSize{
-                .type = .CombinedImageSampler,
+                .type = .UniformBuffer,
                 .descriptorCount = 1,
             },
         };
 
-        const globalDescriptorBindings = [_]gfx.DescriptorSetLayoutBinding{
+        const materialDescriptorBindings = [_]gfx.DescriptorSetLayoutBinding{
             gfx.DescriptorSetLayoutBinding{
                 .binding = 0,
                 .descriptorType = gfx.DescriptorType.UniformBuffer,
@@ -161,22 +162,22 @@ pub const Material = struct {
 
         self.materialDescriptorSetLayout = try gfx.CreateDescriptorSetLayout(
             &gfx.DescriptorSetLayoutCreateInfo{
-                .pBindings = &globalDescriptorBindings,
-                .bindingCount = @intCast(globalDescriptorBindings.len),
+                .pBindings = &materialDescriptorBindings,
+                .bindingCount = @intCast(materialDescriptorBindings.len),
             },
         );
 
         self.materialDescriptorPool = try gfx.CreateDescriptorPool(
             &gfx.DescriptorPoolCreateInfo{
-                .pPoolSizes = &globalPoolSizes,
-                .poolSizeCount = @intCast(globalPoolSizes.len),
+                .pPoolSizes = &materialPoolSizes,
+                .poolSizeCount = @intCast(materialPoolSizes.len),
                 .maxSets = 1,
             },
         );
 
         const modelPoolSizes = [_]gfx.DescriptorPoolSize{
             gfx.DescriptorPoolSize{
-                .type = .UniformBuffer,
+                .type = .CombinedImageSampler,
                 .descriptorCount = 10,
             },
         };

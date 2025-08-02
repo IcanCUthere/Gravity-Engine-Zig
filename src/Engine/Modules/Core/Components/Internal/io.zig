@@ -72,9 +72,7 @@ pub fn loadModelFromFile(path: [:0]const u8) !ModelData {
                 if (mat.unlit != 0) {
                     const metalMat = mat.pbr_metallic_roughness;
 
-                    util.log.info("Factor: {d}", .{
-                        metalMat.roughness_factor,
-                    });
+                    util.log.print("Factor: {d}", .{metalMat.roughness_factor}, .Info, .Verbose, .{ .MeshLoading = true });
 
                     if (try loadTexture(metalMat.base_color_texture, 4)) |tex| {
                         model.baseColor = tex;

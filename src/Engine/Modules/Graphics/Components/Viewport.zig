@@ -89,8 +89,7 @@ pub const Viewport = struct {
     _layerCount: u32 = undefined,
     _resized: bool = true,
 
-    _swapchainData: []SwapchainData = ([_]SwapchainData{})[0..],
-    _currentSwapchain: u32 = 0,
+    _swapchainData: SwapchainData = SwapchainData.zeroed(),
 
     pub fn getSurface(self: *Self) gfx.SurfaceKHR {
         return self._surface;
@@ -101,7 +100,7 @@ pub const Viewport = struct {
     }
 
     pub fn getImageCount(self: Self) u32 {
-        return @intCast(self._swapchainData[self._currentSwapchain].imageViews.len);
+        return @intCast(self._swapchainData.imageViews.len);
     }
 
     pub fn getHeight(self: Self) u32 {
@@ -118,7 +117,7 @@ pub const Viewport = struct {
 
     //Not available until first nextFrame() call
     pub fn getFramebuffer(self: Self) gfx.Framebuffer {
-        return self._swapchainData[self._currentSwapchain].framebuffers[self._swapchainData[self._currentSwapchain].presentIndex];
+        return self._swapchainData.framebuffers[self._swapchainData.presentIndex];
     }
 
     //Must be set before first nextFrame() call
@@ -163,11 +162,6 @@ pub const Viewport = struct {
                     break;
                 }
             }
-        }
-
-        viewport._swapchainData = try util.mem.heap.alloc(Viewport.SwapchainData, viewport._imageCount);
-        for (viewport._swapchainData) |*data| {
-            data.* = Viewport.SwapchainData.zeroed();
         }
 
         viewport._format = (try viewport._pickFormat()).format;
@@ -238,10 +232,7 @@ pub const Viewport = struct {
         const tracy_zone = tracy.ZoneNC(@src(), "Deinit viewport", 0x00_ff_ff_00);
         defer tracy_zone.End();
 
-        for (self._swapchainData) |*data| {
-            try data.deinit();
-        }
-        util.mem.heap.free(self._swapchainData);
+        try self._swapchainData.deinit();
 
         try gfx.DestroySurfaceKHR(self._surface);
         self._window.destroy();
@@ -258,35 +249,37 @@ pub const Viewport = struct {
         defer tracy_zone.End();
 
         if (self._resized) {
-            const nextIndex: u32 = (self._currentSwapchain + 1) % self._imageCount;
-            const lastIndex: u32 = (self._currentSwapchain + self._imageCount - 1) % self._imageCount;
+            try gfx.DeviceWaitIdle();
+            try self._swapchainData.deinit();
+            try self._initSwapchainData();
 
-            try self._swapchainData[lastIndex].deinit();
-            try self._swapchainData[nextIndex].deinit();
-            try self._initSwapchainData(nextIndex);
-
-            self._currentSwapchain = nextIndex;
             self._resized = false;
         }
 
         try gfx.AcquireNextImageKHR(
-            self._swapchainData[self._currentSwapchain].swapchain,
+            self._swapchainData.swapchain,
             ~@as(u64, 0),
             semaphore,
             null,
-            &self._swapchainData[self._currentSwapchain].presentIndex,
+            &self._swapchainData.presentIndex,
         );
     }
 
-    pub fn presentImage(self: *Self, semaphores: *gfx.Semaphore, count: u32) !void {
+    pub fn presentImage(self: *Self, semaphores: *gfx.Semaphore, count: u32, fence: *gfx.Fence) !void {
         const tracy_zone = tracy.ZoneNC(@src(), "Present image", 0x00_ff_ff_00);
         defer tracy_zone.End();
+
+        const fenceInfo = gfx.SwapchainPresentFenceInfoEXT{
+            .swapchainCount = 1,
+            .pFences = fence,
+        };
 
         _ = try gfx.QueuePresentKHR(
             self._presentQueue,
             &gfx.PresentInfoKHR{
-                .pSwapchains = &[_]gfx.SwapchainKHR{self._swapchainData[self._currentSwapchain].swapchain},
-                .pImageIndices = &[_]u32{self._swapchainData[self._currentSwapchain].presentIndex},
+                .pNext = &fenceInfo,
+                .pSwapchains = &[_]gfx.SwapchainKHR{self._swapchainData.swapchain},
+                .pImageIndices = &[_]u32{self._swapchainData.presentIndex},
                 .swapchainCount = 1,
                 .pWaitSemaphores = @ptrCast(semaphores),
                 .waitSemaphoreCount = count,
@@ -317,18 +310,16 @@ pub const Viewport = struct {
         self._window.hide();
     }
 
-    fn _initSwapchainData(self: *Self, index: u32) !void {
-        try self._swapchainData[index].deinit();
+    fn _initSwapchainData(self: *Self) !void {
+        self._swapchainData.swapchain = try self._createSwapchain();
 
-        self._swapchainData[index].swapchain = try self._createSwapchain(self._swapchainData[self._currentSwapchain].swapchain);
-
-        const swapchainImages = try gfx.GetSwapchainImagesKHR(self._swapchainData[index].swapchain, mem.fixedBuffer);
+        const swapchainImages = try gfx.GetSwapchainImagesKHR(self._swapchainData.swapchain, mem.fixedBuffer);
         defer util.mem.fixedBuffer.free(swapchainImages);
 
-        self._swapchainData[index].imageViews = try util.mem.heap.alloc(gfx.ImageView, swapchainImages.len + 1);
-        self._swapchainData[index].framebuffers = try util.mem.heap.alloc(gfx.Framebuffer, swapchainImages.len);
+        self._swapchainData.imageViews = try util.mem.heap.alloc(gfx.ImageView, swapchainImages.len + 1);
+        self._swapchainData.framebuffers = try util.mem.heap.alloc(gfx.Framebuffer, swapchainImages.len);
 
-        self._swapchainData[index].depthBuffer = try gfx.createImage(
+        self._swapchainData.depthBuffer = try gfx.createImage(
             gfx.vkAllocator,
             &gfx.ImageCreateInfo{
                 .imageType = gfx.ImageType.@"2d",
@@ -353,9 +344,9 @@ pub const Viewport = struct {
             },
         );
 
-        self._swapchainData[index].imageViews[swapchainImages.len] = try gfx.CreateImageView(
+        self._swapchainData.imageViews[swapchainImages.len] = try gfx.CreateImageView(
             &.{
-                .image = self._swapchainData[index].depthBuffer.image,
+                .image = self._swapchainData.depthBuffer.image,
                 .viewType = gfx.ImageViewType.@"2d",
                 .format = gfx.Format.D16Unorm,
                 .components = gfx.ComponentMapping{
@@ -375,7 +366,7 @@ pub const Viewport = struct {
         );
 
         for (swapchainImages, 0..) |image, i| {
-            self._swapchainData[index].imageViews[i] = try gfx.CreateImageView(
+            self._swapchainData.imageViews[i] = try gfx.CreateImageView(
                 &gfx.ImageViewCreateInfo{
                     .image = image,
                     .viewType = gfx.ImageViewType.@"2d",
@@ -396,12 +387,12 @@ pub const Viewport = struct {
                 },
             );
 
-            self._swapchainData[index].framebuffers[i] = try gfx.CreateFramebuffer(
+            self._swapchainData.framebuffers[i] = try gfx.CreateFramebuffer(
                 &gfx.FramebufferCreateInfo{
                     .renderPass = self._renderPass,
                     .pAttachments = &[_]gfx.ImageView{
-                        self._swapchainData[index].imageViews[i],
-                        self._swapchainData[index].imageViews[swapchainImages.len],
+                        self._swapchainData.imageViews[i],
+                        self._swapchainData.imageViews[swapchainImages.len],
                     },
                     .attachmentCount = 2,
                     .width = self._width,
@@ -426,7 +417,7 @@ pub const Viewport = struct {
         } else surfaceFormats[0];
     }
 
-    fn _createSwapchain(self: *Self, oldSwapchain: gfx.SwapchainKHR) !gfx.SwapchainKHR {
+    fn _createSwapchain(self: *Self) !gfx.SwapchainKHR {
         const surfaceFormat = try self._pickFormat();
 
         self._format = surfaceFormat.format;
@@ -488,10 +479,24 @@ pub const Viewport = struct {
             self._width = capabilities.currentExtent.width;
         }
 
+        const presentMode = loop: for (presentModeOrder) |desiredMode| {
+            for (presentModes) |availableMode| {
+                if (availableMode == desiredMode) {
+                    break :loop availableMode;
+                }
+            }
+        } else return error.NoPresentModeAvailable;
+
+        const presentModesInfo = gfx.SwapchainPresentModesCreateInfoEXT{
+            .pPresentModes = &[_]gfx.PresentModeKHR{presentMode},
+            .presentModeCount = 1,
+        };
+
         return try gfx.CreateSwapchainKHR(
             &gfx.SwapchainCreateInfoKHR{
+                .pNext = &presentModesInfo,
                 .surface = self._surface,
-                .oldSwapchain = oldSwapchain,
+                .oldSwapchain = null,
                 .minImageCount = self._imageCount,
                 .imageArrayLayers = self._layerCount,
                 .clipped = gfx.TRUE,
@@ -508,13 +513,7 @@ pub const Viewport = struct {
                 .pQueueFamilyIndices = if (self._renderQueueIndex == self._presentQueueIndex) &[_]u32{self._renderQueueIndex} else &[_]u32{ self._renderQueueIndex, self._presentQueueIndex },
                 .imageSharingMode = if (self._renderQueueIndex == self._presentQueueIndex) gfx.SharingMode.Exclusive else gfx.SharingMode.Concurrent,
                 .preTransform = capabilities.currentTransform,
-                .presentMode = loop: for (presentModeOrder) |desiredMode| {
-                    for (presentModes) |availableMode| {
-                        if (availableMode == desiredMode) {
-                            break :loop availableMode;
-                        }
-                    }
-                } else return error.NoPresentModeAvailable,
+                .presentMode = presentMode,
             },
         );
     }

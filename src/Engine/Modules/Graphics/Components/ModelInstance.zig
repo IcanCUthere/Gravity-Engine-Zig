@@ -21,6 +21,7 @@ pub const ModelInstance = struct {
 
     pub fn register(scene: *flecs.world_t) void {
         flecs.COMPONENT(scene, Self);
+        flecs.add_pair(scene, flecs.id(Self), flecs.OnInstantiate, flecs.Inherit);
 
         _scene = scene;
     }

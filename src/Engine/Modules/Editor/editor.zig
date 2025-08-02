@@ -61,6 +61,7 @@ pub const Editor = struct {
                 .pPoolSizes = &guiPoolSizes,
                 .poolSizeCount = @intCast(guiPoolSizes.len),
                 .maxSets = 1,
+                .flags = gfx.toFlags(&[_]gfx.DescriptorPoolCreateFlagBits{.FreeDescriptorSetBit}),
             },
         );
 

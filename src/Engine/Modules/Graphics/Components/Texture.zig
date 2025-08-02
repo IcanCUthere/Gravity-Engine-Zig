@@ -24,6 +24,7 @@ pub const Texture = struct {
         _scene = scene;
 
         flecs.COMPONENT(scene, Self);
+        flecs.add_pair(scene, flecs.id(Self), flecs.OnInstantiate, flecs.Inherit);
 
         Prefab = flecs.new_prefab(scene, "TexturePrefab");
         flecs.add(scene, Prefab, Self);

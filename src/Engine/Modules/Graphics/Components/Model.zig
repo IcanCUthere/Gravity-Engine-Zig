@@ -27,6 +27,8 @@ pub const Model = struct {
 
         flecs.COMPONENT(scene, Self);
 
+        flecs.add_pair(scene, flecs.id(Self), flecs.OnInstantiate, flecs.Inherit);
+
         Prefab = flecs.new_prefab(scene, "ModelPrefab");
         flecs.add_pair(scene, Prefab, flecs.IsA, core.Transform.getPrefab());
         flecs.add(scene, Prefab, Self);

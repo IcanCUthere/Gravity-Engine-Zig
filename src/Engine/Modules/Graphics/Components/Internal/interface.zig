@@ -16,8 +16,13 @@ pub var renderQueue: vk.Queue = undefined;
 var deviceProperties: vk.PhysicalDeviceProperties = undefined;
 
 pub fn init() !void {
-    const version = vk.Version13;
-    const extensions = [_]type{vk.KHRSwapchain};
+    const version = vk.Version14;
+    const extensions = [_]type{
+        vk.KHRSwapchain,
+        vk.KHRGetSurfaceCapabilities2,
+        vk.EXTSurfaceMaintenance1,
+        vk.EXTSwapchainMaintenance1,
+    };
     const validation = if (builtin.mode == .Debug) true else false;
 
     try version.loadBaseFunctions();
@@ -42,7 +47,7 @@ pub fn init() !void {
     for (instanceExtensionsNames, 0..) |name, i| {
         combinedInstanceExtensions[i] = name;
     }
-    for (glfwExtensionsNames, instanceExtensionsNames.len - 1..) |name, i| {
+    for (glfwExtensionsNames, instanceExtensionCount..) |name, i| {
         combinedInstanceExtensions[i] = name;
     }
 
@@ -52,7 +57,7 @@ pub fn init() !void {
         .enabledLayerCount = if (validation) 1 else 0,
         .ppEnabledLayerNames = &[_][*:0]const u8{"VK_LAYER_KHRONOS_validation"},
         .pApplicationInfo = &vk.ApplicationInfo{
-            .apiVersion = vk.apiVersion13,
+            .apiVersion = vk.apiVersion14,
             .applicationVersion = 0,
             .engineVersion = 0,
             .pApplicationName = "Test",
@@ -93,7 +98,7 @@ pub fn init() !void {
         }
     }
 
-    physicalDevice = try findBestDevice(&deviceExtensions);
+    physicalDevice = try findBestDevice(deviceExtensions[0..deviceExtensionCount]);
     deviceProperties = try vk.GetPhysicalDeviceProperties(physicalDevice);
 
     util.log.print(
@@ -130,18 +135,26 @@ pub fn init() !void {
         .timelineSemaphore = vk.TRUE,
     };
 
+    const swapchainMaintainanceFeature = vk.PhysicalDeviceSwapchainMaintenance1FeaturesEXT{
+        .pNext = &timelineFeature,
+        .swapchainMaintenance1 = vk.TRUE,
+    };
+
     var deviceFeatures: vk.PhysicalDeviceFeatures = try vk.GetPhysicalDeviceFeatures(physicalDevice);
     deviceFeatures.samplerAnisotropy = vk.TRUE;
+
+    var deviceFeatures2 = try vk.GetPhysicalDeviceFeatures2(physicalDevice, deviceFeatures);
+    deviceFeatures2.pNext = &swapchainMaintainanceFeature;
 
     vk.gDevice = try vk.CreateDevice(
         physicalDevice,
         &vk.DeviceCreateInfo{
-            .pNext = &timelineFeature,
+            .pNext = &deviceFeatures2,
             .enabledLayerCount = 0,
             .ppEnabledLayerNames = null,
             .enabledExtensionCount = deviceExtensionCount,
             .ppEnabledExtensionNames = &deviceExtensions,
-            .pEnabledFeatures = &deviceFeatures,
+            .pEnabledFeatures = null,
             .queueCreateInfoCount = @intCast(queueCreateInfos.len),
             .pQueueCreateInfos = queueCreateInfos.ptr,
         },
@@ -159,7 +172,7 @@ pub fn init() !void {
         vk.gInstance,
         vk.gDevice,
         physicalDevice,
-        vk.apiVersion13,
+        vk.apiVersion14,
     );
 }
 

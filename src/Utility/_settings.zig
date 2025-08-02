@@ -2,7 +2,8 @@
 pub const UsedLogContext = LogContext{
     //.Vulkan = true,
     //.ShaderLoading = true,
-    .MeshLoading = true,
+    //.MeshLoading = true,
+    .Modules = true,
 };
 pub const UsedLogLevel = LogLevel.Verbose;
 pub const UsedLogType = LogType.Info;

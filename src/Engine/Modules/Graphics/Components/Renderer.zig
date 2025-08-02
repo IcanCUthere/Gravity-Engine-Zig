@@ -22,6 +22,7 @@ pub const Renderer = struct {
     var renderCmdPools: []gfx.CommandPool = undefined;
     var renderCmdLists: []gfx.CommandBuffer = undefined;
 
+    var _presentFences: []gfx.Fence = undefined;
     var _semaphores: []gfx.Semaphore = undefined;
     pub var _timelineSemaphore: gfx.Semaphore = undefined;
     pub var _semaphoreValue: u64 = 0;
@@ -85,17 +86,20 @@ pub const Renderer = struct {
         renderCmdPools = try util.mem.heap.alloc(gfx.CommandPool, BufferedImages);
         renderCmdLists = try util.mem.heap.alloc(gfx.CommandBuffer, BufferedImages);
 
+        _presentFences = try util.mem.heap.alloc(gfx.Fence, BufferedImages);
         _semaphores = try util.mem.heap.alloc(gfx.Semaphore, BufferedImages);
         waitValues = try util.mem.heap.alloc(u64, BufferedImages);
 
         for (
             renderCmdPools,
             renderCmdLists,
+            _presentFences,
             _semaphores,
             waitValues,
         ) |
             *rpool,
             *rlist,
+            *fen,
             *sem,
             *wv,
         | {
@@ -111,6 +115,7 @@ pub const Renderer = struct {
                 .commandBufferCount = 1,
             }, @ptrCast(rlist));
 
+            fen.* = try gfx.CreateFence(&.{ .flags = gfx.toFlags(&[_]gfx.FenceCreateFlagBits{.SignaledBit}) });
             sem.* = try gfx.CreateSemaphore(&.{});
         }
 
@@ -167,6 +172,8 @@ pub const Renderer = struct {
             .semaphoreCount = 1,
         }, ~@as(u64, 0));
 
+        _ = try gfx.WaitForFences(_presentFences, gfx.TRUE, ~@as(u64, 0));
+
         stageData.deinit();
         descriptorWrites.deinit();
         descriptorBufferWrites.deinit();
@@ -180,12 +187,14 @@ pub const Renderer = struct {
             gfx.destroyBuffer(gfx.vkAllocator, b);
         }
 
-        for (renderCmdPools, _semaphores) |rpool, sem| {
+        for (renderCmdPools, _semaphores, _presentFences) |rpool, sem, fen| {
+            try gfx.DestroyFence(fen);
             try gfx.DestroySemaphore(sem);
             try gfx.DestroyCommandPool(rpool);
         }
 
         util.mem.heap.free(waitValues);
+        util.mem.heap.free(_presentFences);
         util.mem.heap.free(_semaphores);
         util.mem.heap.free(renderCmdLists);
         util.mem.heap.free(renderCmdPools);
@@ -406,11 +415,12 @@ pub const Renderer = struct {
         const tracy_zone = tracy.ZoneNC(@src(), "Begin frame", 0x00_ff_ff_00);
         defer tracy_zone.End();
 
-        _ = try gfx.WaitSemaphores(&gfx.SemaphoreWaitInfo{
-            .pSemaphores = @ptrCast(&_timelineSemaphore),
-            .pValues = &[_]u64{waitValues[imageIndex]},
-            .semaphoreCount = 1,
-        }, ~@as(u64, 0));
+        _ = try gfx.WaitForFences(
+            _presentFences[imageIndex .. imageIndex + 1],
+            gfx.TRUE,
+            ~@as(u64, 0),
+        );
+        _ = try gfx.ResetFences(_presentFences[imageIndex .. imageIndex + 1]);
 
         try viewport[0].nextFrame(_semaphores[imageIndex]);
 
@@ -610,7 +620,7 @@ pub const Renderer = struct {
             null,
         );
 
-        try viewport[0].presentImage(&_semaphores[imageIndex], 1);
+        try viewport[0].presentImage(&_semaphores[imageIndex], 1, &_presentFences[imageIndex]);
 
         imageIndex = (imageIndex + 1) % BufferedImages;
     }

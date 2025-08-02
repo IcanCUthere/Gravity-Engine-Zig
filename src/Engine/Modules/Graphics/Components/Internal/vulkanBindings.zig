@@ -27,6 +27,7 @@ pub const apiVersion10 = makeApiVersion(0, 1, 0, 0);
 pub const apiVersion11 = makeApiVersion(0, 1, 1, 0);
 pub const apiVersion12 = makeApiVersion(0, 1, 2, 0);
 pub const apiVersion13 = makeApiVersion(0, 1, 3, 0);
+pub const apiVersion14 = makeApiVersion(0, 1, 4, 0);
 pub const scApiVersion10 = makeApiVersion(1, 1, 0, 0);
 pub const nullHandle = null;
 pub fn makeApiVersion(variant: u32, major: u32, minor: u32, patch: u32) u32 {
@@ -2116,7 +2117,7 @@ pub const BindPipelineIndirectCommandNV = extern struct {
 
 pub const PhysicalDeviceFeatures2 = extern struct {
     sType: StructureType = .PhysicalDeviceFeatures2,
-    pNext: ?*anyopaque = null,
+    pNext: ?*const anyopaque = null,
     features: PhysicalDeviceFeatures,
 };
 
@@ -9628,7 +9629,7 @@ pub const SurfacePresentModeCompatibilityKHR = extern struct {
 pub const SurfacePresentModeCompatibilityEXT = SurfacePresentModeCompatibilityKHR;
 pub const PhysicalDeviceSwapchainMaintenance1FeaturesKHR = extern struct {
     sType: StructureType = .PhysicalDeviceSwapchainMaintenance1FeaturesKhr,
-    pNext: ?*anyopaque = null,
+    pNext: ?*const anyopaque = null,
     swapchainMaintenance1: Bool32,
 };
 
@@ -18869,11 +18870,13 @@ pub inline fn UpdateIndirectExecutionSetShaderEXT(indirectExecutionSet: Indirect
 
 pub const PFN_GetPhysicalDeviceFeatures2 = ?*const fn (physicalDevice: PhysicalDevice, pFeatures: [*c]PhysicalDeviceFeatures2) callconv(vkCallconv) void;
 pub var vkGetPhysicalDeviceFeatures2: PFN_GetPhysicalDeviceFeatures2 = null;
-pub inline fn GetPhysicalDeviceFeatures2(physicalDevice: PhysicalDevice) !PhysicalDeviceFeatures2 {
+pub inline fn GetPhysicalDeviceFeatures2(physicalDevice: PhysicalDevice, features: PhysicalDeviceFeatures) !PhysicalDeviceFeatures2 {
     if (vkGetPhysicalDeviceFeatures2 == null)
         return error.functionNotLoaded;
 
-    var localVar: PhysicalDeviceFeatures2 = undefined;
+    var localVar: PhysicalDeviceFeatures2 = .{
+        .features = features,
+    };
 
     vkGetPhysicalDeviceFeatures2.?(physicalDevice, &localVar);
 
@@ -27206,7 +27209,7 @@ pub const EXTSwapchainMaintenance1 = struct {
     pub const specVersion: u32 = 1;
     pub const isInstanceExtension: bool = false;
     pub fn load() !void {
-        vkReleaseSwapchainImagesKHR = @ptrCast(vkGetDeviceProcAddr.?(gDevice, "vkReleaseSwapchainImagesKHR") orelse return error.functionNotLoadable);
+        vkReleaseSwapchainImagesKHR = @ptrCast(vkGetDeviceProcAddr.?(gDevice, "vkReleaseSwapchainImagesEXT") orelse return error.functionNotLoadable);
     }
 };
 
