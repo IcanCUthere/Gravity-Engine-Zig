@@ -6,8 +6,8 @@ const msh = @import("zmesh");
 const stbi = @import("zstbi");
 
 pub const Transform = @import("Components/Transform.zig").Transform;
-pub const io = @import("Components/Internal/io.zig");
-pub const storage = @import("Components/Internal/storage.zig");
+pub const io = @import("Internal/io.zig");
+pub const storage = @import("Internal/storage.zig");
 
 pub const Pipeline = struct {
     pub const onLoad = flecs.OnLoad;

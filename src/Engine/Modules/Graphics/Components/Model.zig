@@ -6,7 +6,7 @@ const tracy = @import("ztracy");
 
 const core = @import("CoreModule");
 
-const gfx = @import("Internal/interface.zig");
+const gfx = @import("../Internal/interface.zig");
 const Renderer = @import("Renderer.zig").Renderer;
 const Material = @import("Material.zig").Material;
 const Texture = @import("Texture.zig").Texture;
@@ -14,7 +14,6 @@ const Texture = @import("Texture.zig").Texture;
 pub const Model = struct {
     const Self = @This();
     var _scene: *flecs.world_t = undefined;
-    pub var Prefab: flecs.entity_t = undefined;
 
     mesh: *const core.io.Mesh = undefined,
 
@@ -32,22 +31,11 @@ pub const Model = struct {
         );
     }
 
-    pub fn setPrefab(scene: *flecs.world_t) void {
-        flecs.add_pair(scene, Prefab, flecs.IsA, core.Transform.getPrefab());
-        flecs.add(scene, Prefab, Texture);
-    }
-
-    pub fn getPrefab() flecs.entity_t {
-        return Prefab;
-    }
-
     pub fn new(name: [*:0]const u8, path: [:0]const u8, material: flecs.entity_t) !flecs.entity_t {
         const newEntt = flecs.new_entity(_scene, name);
         const data = try core.storage.getOrAddMesh(path);
 
-        flecs.add_pair(_scene, newEntt, flecs.IsA, getPrefab());
         flecs.add_pair(_scene, newEntt, flecs.IsA, material);
-
         _ = flecs.set(_scene, newEntt, Texture, try Texture.init(
             &data.baseColor,
         ));

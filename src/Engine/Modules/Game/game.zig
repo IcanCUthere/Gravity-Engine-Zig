@@ -27,13 +27,6 @@ pub const Game = struct {
 
         try util.module.registerComponents(_scene, &components);
 
-        _ = flecs.set(scene, graphics.Graphics.mainCamera, graphics.Camera, try graphics.Camera.init(
-            45.0,
-            1.0,
-            1.0,
-            10000.0,
-        ));
-
         _ = flecs.set(scene, graphics.Graphics.mainCamera, CameraController, .{});
 
         const prefab = try graphics.Model.new(
@@ -52,7 +45,8 @@ pub const Game = struct {
 
                     res[res.len - 1] = 0;
 
-                    _ = try graphics.ModelInstance.new(
+                    _ = try graphics.ModelEntity.init(
+                        scene,
                         @ptrCast(res.ptr),
                         prefab,
                         .{ @floatFromInt(x * 5), @floatFromInt(y * 5), @floatFromInt(z * 5), 1.0 },

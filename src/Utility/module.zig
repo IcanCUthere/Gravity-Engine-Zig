@@ -25,10 +25,6 @@ fn registerComponent(scene: *flecs.world_t, T: type) !void {
             .dtor = makeDtor(T),
         },
     );
-
-    T.Prefab = flecs.new_prefab(scene, @typeName(T) ++ "Prefab");
-    flecs.add(scene, T.Prefab, T);
-    T.setPrefab(scene);
 }
 
 pub fn unregisterComponents(scene: *flecs.world_t, components: []const type) !void {
@@ -55,7 +51,15 @@ fn makeDtor(comptime T: type) fn (*anyopaque, i32, *const flecs.type_info_t) cal
             const components: []T = @as([*]T, @alignCast(@ptrCast(ptr)))[0..@intCast(count)];
 
             for (components) |*component| {
-                component.*.deinit() catch {}; //TODO:
+                component.*.deinit() catch {
+                    log.print(
+                        "Failed to deinit {s}",
+                        .{@typeName(T)},
+                        .Critical,
+                        .Abstract,
+                        .{ .Modules = true },
+                    );
+                };
             }
         }
     }.dtor;

@@ -6,13 +6,13 @@ const tracy = @import("ztracy");
 
 const core = @import("CoreModule");
 
-const gfx = @import("../Components/Internal/interface.zig");
-const Model = @import("../Components/Model.zig").Model;
+const gfx = @import("../Internal/interface.zig");
+const ModelInstance = @import("../Components/ModelInstance.zig").ModelInstance;
 const Material = @import("../Components/Material.zig").Material;
 const Renderer = @import("../Components/Renderer.zig").Renderer;
 
-pub const ModelEntity = struct {
-    pub fn new(scene: *flecs.world_t, name: [*:0]const u8, model: flecs.entity_t, position: util.math.simd.Vec) !flecs.entity_t {
+pub const Model = struct {
+    pub fn init(scene: *flecs.world_t, name: [*:0]const u8, model: flecs.entity_t, position: util.math.simd.Vec) !flecs.entity_t {
         const newEntt = flecs.new_entity(scene, name);
 
         flecs.add_pair(scene, newEntt, flecs.IsA, model);
@@ -20,10 +20,7 @@ pub const ModelEntity = struct {
             .localPosition = position,
             .translationMatrix = util.math.simd.translation(position[0], position[1], position[2]),
         });
-
-        //_ = flecs.set()
-
-        // _ = flecs.set(scene, newEntt, Self, try init(model));
+        _ = flecs.set(scene, newEntt, ModelInstance, try ModelInstance.init(model));
 
         return newEntt;
     }

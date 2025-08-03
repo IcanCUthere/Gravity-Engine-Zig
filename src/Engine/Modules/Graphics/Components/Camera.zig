@@ -7,15 +7,13 @@ const tracy = @import("ztracy");
 
 const core = @import("CoreModule");
 
-const gfx = @import("Internal/interface.zig");
+const gfx = @import("../Internal/interface.zig");
 const Renderer = @import("Renderer.zig").Renderer;
 
 pub const Camera = struct {
     const Self = @This();
-    pub var Prefab: flecs.entity_t = undefined;
 
     projectionMatrix: util.math.simd.Mat = util.math.simd.identity(),
-
     cameraMatricesUniform: gfx.BufferAllocation = undefined,
 
     pub fn setTraits(scene: *flecs.world_t) void {
@@ -25,14 +23,6 @@ pub const Camera = struct {
             flecs.OnInstantiate,
             flecs.Override,
         );
-    }
-
-    pub fn setPrefab(scene: *flecs.world_t) void {
-        flecs.add_pair(scene, Prefab, flecs.IsA, core.Transform.getPrefab());
-    }
-
-    pub fn getPrefab() flecs.entity_t {
-        return Prefab;
     }
 
     pub fn init(FOWinDeg: f32, aspectRatio: f32, near: f32, far: f32) !Self {

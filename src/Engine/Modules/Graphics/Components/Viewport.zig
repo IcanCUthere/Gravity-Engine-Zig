@@ -4,12 +4,11 @@ const mem = util.mem;
 const flecs = @import("zflecs");
 const tracy = @import("ztracy");
 
-const gfx = @import("Internal/interface.zig");
-const evnt = @import("Internal/event.zig");
+const gfx = @import("../Internal/interface.zig");
+const evnt = @import("../Internal/event.zig");
 
 pub const Viewport = struct {
     const Self = @This();
-    pub var Prefab: flecs.entity_t = undefined;
 
     pub fn setTraits(scene: *flecs.world_t) void {
         flecs.add_pair(
@@ -18,12 +17,6 @@ pub const Viewport = struct {
             flecs.OnInstantiate,
             flecs.Override,
         );
-    }
-
-    pub fn setPrefab(_: *flecs.world_t) void {}
-
-    pub fn getPrefab() flecs.entity_t {
-        return Prefab;
     }
 
     const SwapchainData = struct {

@@ -4,7 +4,7 @@ const tracy = @import("ztracy");
 
 const core = @import("CoreModule");
 
-const gfx = @import("Internal/interface.zig");
+const gfx = @import("../Internal/interface.zig");
 const Renderer = @import("Renderer.zig").Renderer;
 const Material = @import("Material.zig").Material;
 const Model = @import("Model.zig").Model;
@@ -12,7 +12,6 @@ const Model = @import("Model.zig").Model;
 pub const Texture = struct {
     const Self = @This();
     var _scene: *flecs.world_t = undefined;
-    pub var Prefab: flecs.entity_t = undefined;
 
     baseImage: *const core.io.Image = undefined,
 
@@ -29,19 +28,6 @@ pub const Texture = struct {
             flecs.OnInstantiate,
             flecs.Inherit,
         );
-    }
-
-    pub fn setPrefab(_: *flecs.world_t) void {}
-
-    pub fn getPrefab() flecs.entity_t {
-        return Prefab;
-    }
-
-    pub fn new(name: [*:0]const u8, image: *const core.io.Image) !flecs.entity_t {
-        const newEntt = flecs.new_entity(_scene, name);
-        _ = flecs.set(_scene, newEntt, Self, try init(image));
-
-        return newEntt;
     }
 
     pub fn init(image: *const core.io.Image) !Texture {

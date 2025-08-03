@@ -17,8 +17,6 @@ pub const Editor = struct {
     var selectedEntity: u64 = 0;
     var entityWindowOpen: bool = false;
 
-    var val3: @Vector(3, f32) = .{ 0, 0, 0 };
-
     var _scene: *flecs.world_t = undefined;
 
     var guiDescriptorPool: gfx.DescriptorPool = undefined;
@@ -167,7 +165,8 @@ pub const Editor = struct {
             graphics.Graphics.baseMaterial,
         );
 
-        _ = try graphics.ModelInstance.new(
+        _ = try graphics.ModelEntity.init(
+            scene,
             "GizmoInstance",
             gizmo,
             util.math.videntity(),

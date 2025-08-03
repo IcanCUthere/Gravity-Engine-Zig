@@ -6,7 +6,7 @@ const flecs = @import("zflecs");
 
 const core = @import("CoreModule");
 
-const gfx = @import("Internal/interface.zig");
+const gfx = @import("../Internal/interface.zig");
 const Camera = @import("Camera.zig").Camera;
 const Viewport = @import("Viewport.zig").Viewport;
 const Model = @import("Model.zig").Model;

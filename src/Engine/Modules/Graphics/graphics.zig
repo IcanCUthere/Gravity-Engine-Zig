@@ -7,10 +7,10 @@ const glfw = @import("zglfw");
 
 const core = @import("CoreModule");
 
-pub const shaders = @import("Components/Internal/shaderStorage.zig");
-pub const gfx = @import("Components/Internal/interface.zig");
-pub const evnt = @import("Components/Internal/event.zig");
-pub const InputState = @import("Components/Internal/inputState.zig").InputState;
+pub const shaders = @import("Internal/shaderStorage.zig");
+pub const gfx = @import("Internal/interface.zig");
+pub const evnt = @import("Internal/event.zig");
+pub const InputState = @import("Internal/inputState.zig").InputState;
 pub const Camera = @import("Components/Camera.zig").Camera;
 pub const Viewport = @import("Components/Viewport.zig").Viewport;
 pub const Renderer = @import("Components/Renderer.zig").Renderer;
@@ -19,7 +19,8 @@ pub const Material = @import("Components/Material.zig").Material;
 pub const Texture = @import("Components/Texture.zig").Texture;
 pub const ModelInstance = @import("Components/ModelInstance.zig").ModelInstance;
 
-pub const ModelEntity = @import("Entities/ModelEntity.zig").ModelEntity;
+pub const ModelEntity = @import("Entities/Model.zig").Model;
+pub const CameraEntity = @import("Entities/Camera.zig").Camera;
 
 pub const Graphics = struct {
     pub const name: []const u8 = "graphics";
@@ -50,9 +51,6 @@ pub const Graphics = struct {
 
         try util.module.registerComponents(scene, &components);
 
-        mainCamera = flecs.new_entity(scene, "Main Camera");
-        flecs.add_pair(scene, mainCamera, flecs.IsA, Camera.getPrefab());
-
         var viewport = try Viewport.init(
             "Gravity Control",
             1000,
@@ -68,8 +66,9 @@ pub const Graphics = struct {
         viewport.setRenderPass(Renderer._renderPass);
 
         mainViewport = flecs.new_entity(scene, "Main Viewport");
-        flecs.add_pair(scene, mainViewport, flecs.IsA, Viewport.getPrefab());
         _ = flecs.set(scene, mainViewport, Viewport, viewport);
+
+        mainCamera = try CameraEntity.init(scene, "MainCamera");
 
         var desc = flecs.system_desc_t{};
         desc.callback = flecs.SystemImpl(Renderer.render).exec;

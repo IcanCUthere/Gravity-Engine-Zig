@@ -6,7 +6,7 @@ const tracy = @import("ztracy");
 
 const core = @import("CoreModule");
 
-const gfx = @import("Internal/interface.zig");
+const gfx = @import("../Internal/interface.zig");
 const Model = @import("Model.zig").Model;
 const Material = @import("Material.zig").Material;
 const Renderer = @import("Renderer.zig").Renderer;
@@ -14,7 +14,6 @@ const Renderer = @import("Renderer.zig").Renderer;
 pub const ModelInstance = struct {
     const Self = @This();
     var _scene: *flecs.world_t = undefined;
-    pub var Prefab: flecs.entity_t = undefined;
 
     descriptorSet: gfx.DescriptorSet = undefined,
     modelMatrixUniform: gfx.BufferAllocation = undefined,
@@ -28,22 +27,6 @@ pub const ModelInstance = struct {
             flecs.OnInstantiate,
             flecs.Inherit,
         );
-    }
-
-    pub fn setPrefab(_: *flecs.world_t) void {}
-
-    pub fn new(name: [*:0]const u8, model: flecs.entity_t, position: util.math.simd.Vec) !flecs.entity_t {
-        const newEntt = flecs.new_entity(_scene, name);
-
-        flecs.add_pair(_scene, newEntt, flecs.IsA, model);
-        _ = flecs.set(_scene, newEntt, core.Transform, core.Transform{
-            .localPosition = position,
-            .translationMatrix = util.math.simd.translation(position[0], position[1], position[2]),
-        });
-
-        _ = flecs.set(_scene, newEntt, Self, try init(model));
-
-        return newEntt;
     }
 
     pub fn init(model: flecs.entity_t) !Self {

@@ -9,7 +9,6 @@ const graphics = @import("GraphicsModule");
 
 pub const CameraController = struct {
     const Self = @This();
-    pub var Prefab: flecs.entity_t = undefined;
 
     speed: f32 = 5.0,
 
@@ -42,12 +41,6 @@ pub const CameraController = struct {
         eventSystem.query.terms[0] = .{ .id = flecs.id(Self), .inout = .InOut };
 
         _ = flecs.SYSTEM(scene, "Update Controllers", flecs.PostLoad, &eventSystem);
-    }
-
-    pub fn setPrefab(_: *flecs.world_t) void {}
-
-    pub fn getPrefab() flecs.entity_t {
-        return Prefab;
     }
 
     pub fn init() Self {}

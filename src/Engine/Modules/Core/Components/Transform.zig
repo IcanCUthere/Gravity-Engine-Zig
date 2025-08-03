@@ -5,7 +5,6 @@ const flecs = @import("zflecs");
 
 pub const Transform = struct {
     const Self = @This();
-    pub var Prefab: flecs.entity_t = undefined;
 
     worldPosition: math.simd.Vec = math.videntity(),
     worldRotation: math.simd.Vec = math.videntity(),
@@ -27,15 +26,11 @@ pub const Transform = struct {
         );
     }
 
-    pub fn setPrefab(_: *flecs.world_t) void {}
-
-    pub fn init() Self {}
+    pub fn init() Self {
+        return Self{};
+    }
 
     pub fn deinit(_: Self) !void {}
-
-    pub fn getPrefab() flecs.entity_t {
-        return Prefab;
-    }
 
     pub fn getLocalRightVector(self: Self) math.Vec {
         return math.simd.vec4ToVec3(math.simd.mul(

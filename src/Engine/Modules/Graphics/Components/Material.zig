@@ -8,10 +8,10 @@ const tracy = @import("ztracy");
 
 const core = @import("CoreModule");
 
-const gfx = @import("Internal/interface.zig");
+const gfx = @import("../Internal/interface.zig");
 const Renderer = @import("Renderer.zig").Renderer;
 
-const shaders = @import("Internal/shaderStorage.zig");
+const shaders = @import("../Internal/shaderStorage.zig");
 
 pub const Archetype = enum(u8) {
     Unlit,
@@ -84,7 +84,6 @@ pub const CreateOptions = struct {
 pub const Material = struct {
     const Self = @This();
     var _scene: *flecs.world_t = undefined;
-    pub var Prefab: flecs.entity_t = undefined;
 
     vertexModule: gfx.ShaderModule = undefined,
     fragmentModule: gfx.ShaderModule = undefined,
@@ -114,15 +113,8 @@ pub const Material = struct {
         );
     }
 
-    pub fn setPrefab(_: *flecs.world_t) void {}
-
-    pub fn getPrefab() flecs.entity_t {
-        return Prefab;
-    }
-
     pub fn new(name: []const u8, vertexShaderPath: []const u8, fragmentShaderPath: []const u8) !flecs.entity_t {
         const newEntt = flecs.new_entity(_scene, @ptrCast(name.ptr));
-        flecs.add_pair(_scene, newEntt, flecs.IsA, getPrefab());
         _ = flecs.set(_scene, newEntt, Self, try init(name, vertexShaderPath, fragmentShaderPath));
 
         return newEntt;
