@@ -183,8 +183,8 @@ pub const Renderer = struct {
         try gfx.DestroyDescriptorSetLayout(globalDescriptorSetLayout);
         try gfx.DestroySemaphore(_timelineSemaphore);
 
-        for (_stagingBuffers) |b| {
-            gfx.destroyBuffer(gfx.vkAllocator, b);
+        for (_stagingBuffers) |buffer| {
+            gfx.destroyBuffer(buffer);
         }
 
         for (renderCmdPools, _semaphores, _presentFences) |rpool, sem, fen| {
@@ -251,7 +251,7 @@ pub const Renderer = struct {
             new.* = stagingData;
         } else {
             const toUpload = [_][]const u8{stagingData.data};
-            _ = try gfx.uploadMemory(gfx.vkAllocator, stagingData.dstBuffer.?, &toUpload, 0);
+            _ = try gfx.uploadMemory(stagingData.dstBuffer.?, &toUpload, 0);
         }
     }
 
@@ -267,11 +267,10 @@ pub const Renderer = struct {
 
         if (_stagingBufferSizes[imageIndex] < size) {
             if (_stagingBufferSizes[imageIndex] != 0) {
-                gfx.destroyBuffer(gfx.vkAllocator, _stagingBuffers[imageIndex]);
+                gfx.destroyBuffer(_stagingBuffers[imageIndex]);
             }
 
             _stagingBuffers[imageIndex] = try gfx.createBuffer(
-                gfx.vkAllocator,
                 &gfx.BufferCreateInfo{
                     .size = size,
                     .usage = gfx.toFlags(&[_]gfx.BufferUsageFlagBits{.TransferSrcBit}),
@@ -349,7 +348,7 @@ pub const Renderer = struct {
             }
         }
 
-        _ = try gfx.uploadMemory(gfx.vkAllocator, _stagingBuffers[imageIndex], datas.items, 0);
+        _ = try gfx.uploadMemory(_stagingBuffers[imageIndex], datas.items, 0);
 
         try gfx.CmdPipelineBarrier(
             renderCmdLists[imageIndex],

@@ -33,7 +33,6 @@ pub const Camera = struct {
         self.setProjectionMatrix(FOWinDeg, aspectRatio, near, far);
 
         self.cameraMatricesUniform = try gfx.createBuffer(
-            gfx.vkAllocator,
             &gfx.BufferCreateInfo{
                 .size = 2 * @sizeOf(util.math.simd.Mat) + @sizeOf(util.math.simd.Vec),
                 .usage = gfx.toFlags(&[_]gfx.BufferUsageFlagBits{.UniformBufferBit}),
@@ -74,7 +73,7 @@ pub const Camera = struct {
         const tracy_zone = tracy.ZoneNC(@src(), "Deinit camera", 0x00_ff_ff_00);
         defer tracy_zone.End();
 
-        gfx.destroyBuffer(gfx.vkAllocator, self.cameraMatricesUniform);
+        gfx.destroyBuffer(self.cameraMatricesUniform);
     }
 
     pub fn onUpdate(_: *flecs.iter_t, cameras: []Camera, transforms: []core.Transform) !void {

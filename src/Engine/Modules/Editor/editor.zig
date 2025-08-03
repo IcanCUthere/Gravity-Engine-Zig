@@ -361,11 +361,10 @@ pub const Editor = struct {
 
     pub fn updateSelectedID(_: *flecs.iter_t) !void {
         const data = try gfx.startReadMemory(
-            gfx.vkAllocator,
             readBackBuffer,
             graphics.InputState.viewportX * graphics.InputState.viewportY * 2 * @sizeOf(u32),
         );
-        defer gfx.stopReadMemory(gfx.vkAllocator, readBackBuffer);
+        defer gfx.stopReadMemory(readBackBuffer);
 
         if (inEditor and
             graphics.InputState.getKeyState(.Mouseleft).isPress and
@@ -612,7 +611,6 @@ pub const Editor = struct {
 
     fn createReadBackData(width: u32, height: u32) !void {
         readBackBuffer = try gfx.createBuffer(
-            gfx.vkAllocator,
             &gfx.BufferCreateInfo{
                 .size = width * height * 2 * @sizeOf(u32),
                 .usage = gfx.toFlags(&[_]gfx.BufferUsageFlagBits{.TransferDstBit}),
@@ -625,7 +623,6 @@ pub const Editor = struct {
         );
 
         depthImage = try gfx.createImage(
-            gfx.vkAllocator,
             &gfx.ImageCreateInfo{
                 .imageType = gfx.ImageType.@"2d",
                 .format = gfx.Format.D16Unorm,
@@ -649,29 +646,32 @@ pub const Editor = struct {
             },
         );
 
-        writeToImage = try gfx.createImage(gfx.vkAllocator, &.{
-            .imageType = gfx.ImageType.@"2d",
-            .format = gfx.Format.R32g32Uint,
-            .extent = gfx.Extent3D{
-                .width = width,
-                .height = height,
-                .depth = 1,
+        writeToImage = try gfx.createImage(
+            &gfx.ImageCreateInfo{
+                .imageType = gfx.ImageType.@"2d",
+                .format = gfx.Format.R32g32Uint,
+                .extent = gfx.Extent3D{
+                    .width = width,
+                    .height = height,
+                    .depth = 1,
+                },
+                .arrayLayers = 1,
+                .mipLevels = 1,
+                .samples = .@"1Bit",
+                .tiling = gfx.ImageTiling.Optimal,
+                .initialLayout = gfx.ImageLayout.Undefined,
+                .usage = gfx.toFlags(&[_]gfx.ImageUsageFlagBits{
+                    .ColorAttachmentBit,
+                    .TransferSrcBit,
+                }),
+                .sharingMode = gfx.SharingMode.Exclusive,
+                .pQueueFamilyIndices = null,
+                .queueFamilyIndexCount = 0,
             },
-            .arrayLayers = 1,
-            .mipLevels = 1,
-            .samples = .@"1Bit",
-            .tiling = gfx.ImageTiling.Optimal,
-            .initialLayout = gfx.ImageLayout.Undefined,
-            .usage = gfx.toFlags(&[_]gfx.ImageUsageFlagBits{
-                .ColorAttachmentBit,
-                .TransferSrcBit,
-            }),
-            .sharingMode = gfx.SharingMode.Exclusive,
-            .pQueueFamilyIndices = null,
-            .queueFamilyIndexCount = 0,
-        }, &.{
-            .usage = gfx.vma.VMA_MEMORY_USAGE_GPU_ONLY,
-        });
+            &.{
+                .usage = gfx.vma.VMA_MEMORY_USAGE_GPU_ONLY,
+            },
+        );
 
         depthImageView = try gfx.CreateImageView(
             &gfx.ImageViewCreateInfo{
@@ -736,9 +736,9 @@ pub const Editor = struct {
         try gfx.DestroyImageView(depthImageView);
         try gfx.DestroyImageView(writeToImageView);
 
-        gfx.destroyImage(gfx.vkAllocator, depthImage);
-        gfx.destroyImage(gfx.vkAllocator, writeToImage);
-        gfx.destroyBuffer(gfx.vkAllocator, readBackBuffer);
+        gfx.destroyImage(depthImage);
+        gfx.destroyImage(writeToImage);
+        gfx.destroyBuffer(readBackBuffer);
     }
 
     fn createPipelineLayout() !gfx.PipelineLayout {

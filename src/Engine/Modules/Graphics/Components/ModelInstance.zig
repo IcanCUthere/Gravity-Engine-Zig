@@ -38,7 +38,6 @@ pub const ModelInstance = struct {
         const matComp = flecs.get(_scene, model, Material).?;
 
         self.modelMatrixUniform = try gfx.createBuffer(
-            gfx.vkAllocator,
             &gfx.BufferCreateInfo{
                 .size = @sizeOf(util.math.simd.Mat),
                 .usage = gfx.toFlags(&[_]gfx.BufferUsageFlagBits{.UniformBufferBit}),
@@ -85,7 +84,7 @@ pub const ModelInstance = struct {
         const tracy_zone = tracy.ZoneNC(@src(), "Deinit model instance", 0x00_ff_ff_00);
         defer tracy_zone.End();
 
-        gfx.destroyBuffer(gfx.vkAllocator, self.modelMatrixUniform);
+        gfx.destroyBuffer(self.modelMatrixUniform);
     }
 
     pub fn onUpdate(_: *flecs.iter_t, models: []ModelInstance, transforms: []core.Transform) !void {

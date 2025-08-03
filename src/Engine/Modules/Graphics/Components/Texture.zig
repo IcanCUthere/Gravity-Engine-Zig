@@ -39,7 +39,6 @@ pub const Texture = struct {
         };
 
         self.image = try gfx.createImage(
-            gfx.vkAllocator,
             &gfx.ImageCreateInfo{
                 .imageType = .@"2d",
                 .format = .R8g8b8a8Srgb,
@@ -174,7 +173,7 @@ pub const Texture = struct {
 
         try gfx.DestroySampler(self.sampler);
         try gfx.DestroyImageView(self.imageView);
-        gfx.destroyImage(gfx.vkAllocator, self.image);
+        gfx.destroyImage(self.image);
     }
 
     pub fn onUpdate(_: *flecs.iter_t) void {}

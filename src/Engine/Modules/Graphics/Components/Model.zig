@@ -60,7 +60,6 @@ pub const Model = struct {
         const indexData = mem.sliceAsBytes(mesh.indexData);
 
         self.vertexBuffer = try gfx.createBuffer(
-            gfx.vkAllocator,
             &gfx.BufferCreateInfo{
                 .size = vertexData.len,
                 .usage = gfx.toFlags(&[_]gfx.BufferUsageFlagBits{
@@ -77,7 +76,6 @@ pub const Model = struct {
         );
 
         self.indexBuffer = try gfx.createBuffer(
-            gfx.vkAllocator,
             &gfx.BufferCreateInfo{
                 .size = indexData.len,
                 .usage = gfx.toFlags(&[_]gfx.BufferUsageFlagBits{
@@ -171,8 +169,8 @@ pub const Model = struct {
         const tracy_zone = tracy.ZoneNC(@src(), "Deinit model", 0x00_ff_ff_00);
         defer tracy_zone.End();
 
-        gfx.destroyBuffer(gfx.vkAllocator, self.vertexBuffer);
-        gfx.destroyBuffer(gfx.vkAllocator, self.indexBuffer);
+        gfx.destroyBuffer(self.vertexBuffer);
+        gfx.destroyBuffer(self.indexBuffer);
     }
 
     pub fn onUpdate(_: *flecs.iter_t) !void {}

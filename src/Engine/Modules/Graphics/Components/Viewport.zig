@@ -37,7 +37,7 @@ pub const Viewport = struct {
             for (self.framebuffers) |frabuf| {
                 try gfx.DestroyFramebuffer(frabuf);
             }
-            gfx.destroyImage(gfx.vkAllocator, self.depthBuffer);
+            gfx.destroyImage(self.depthBuffer);
             try gfx.DestroySwapchainKHR(self.swapchain);
 
             util.mem.heap.free(self.framebuffers);
@@ -292,7 +292,6 @@ pub const Viewport = struct {
         self._swapchainData.framebuffers = try util.mem.heap.alloc(gfx.Framebuffer, swapchainImages.len);
 
         self._swapchainData.depthBuffer = try gfx.createImage(
-            gfx.vkAllocator,
             &gfx.ImageCreateInfo{
                 .imageType = gfx.ImageType.@"2d",
                 .format = gfx.Format.D16Unorm,

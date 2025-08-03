@@ -308,7 +308,6 @@ pub const Material = struct {
         }, @ptrCast(&self.descriptorSet));
 
         self.materialUniforms = try gfx.createBuffer(
-            gfx.vkAllocator,
             &gfx.BufferCreateInfo{
                 .size = 2 * @sizeOf(util.math.simd.Mat),
                 .usage = gfx.toFlags(&[_]gfx.BufferUsageFlagBits{.UniformBufferBit}),
@@ -344,7 +343,7 @@ pub const Material = struct {
         try gfx.DestroyShaderModule(self.vertexModule);
         try gfx.DestroyShaderModule(self.fragmentModule);
 
-        gfx.destroyBuffer(gfx.vkAllocator, self.materialUniforms);
+        gfx.destroyBuffer(self.materialUniforms);
     }
 
     pub fn onUpdate(_: *flecs.iter_t) void {}
