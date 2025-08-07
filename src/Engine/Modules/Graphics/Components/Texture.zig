@@ -11,6 +11,8 @@ const Model = @import("Model.zig").Model;
 
 pub const Texture = struct {
     const Self = @This();
+    var typeId: u64 = undefined;
+
     var _scene: *flecs.world_t = undefined;
 
     baseImage: *const core.io.Image = undefined,

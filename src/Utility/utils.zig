@@ -7,6 +7,7 @@ pub const log = @import("log.zig");
 pub const builtin = std.builtin;
 pub const fs = std.fs;
 pub const fmt = std.fmt;
+pub const DynLib = std.DynLib;
 pub const StringHashMap = std.StringHashMap;
 pub const ArrayList = std.ArrayList;
 

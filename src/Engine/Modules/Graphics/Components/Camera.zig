@@ -91,7 +91,7 @@ pub const Camera = struct {
         }
     }
 
-    pub fn setProjectionMatrix(self: *Self, FOWinDeg: f32, aspectRatio: f32, near: f32, far: f32) void {
-        self.projectionMatrix = util.math.simd.perspectiveFovRh(math.degreesToRadians(FOWinDeg), aspectRatio, near, far);
+    pub fn setProjectionMatrix(self: *Self, FOVinDeg: f32, aspectRatio: f32, near: f32, far: f32) void {
+        self.projectionMatrix = util.math.simd.perspectiveFovRh(math.degreesToRadians(FOVinDeg), aspectRatio, near, far);
     }
 };

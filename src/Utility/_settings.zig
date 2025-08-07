@@ -4,6 +4,7 @@ pub const UsedLogContext = LogContext{
     //.ShaderLoading = true,
     //.MeshLoading = true,
     .Modules = true,
+    //.Allocations = true,
 };
 pub const UsedLogLevel = LogLevel.Verbose;
 pub const UsedLogType = LogType.Info;

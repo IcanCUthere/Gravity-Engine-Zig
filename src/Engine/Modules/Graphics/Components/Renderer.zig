@@ -166,14 +166,6 @@ pub const Renderer = struct {
         const tracy_zone = tracy.ZoneNC(@src(), "Deinit renderer", 0x00_ff_ff_00);
         defer tracy_zone.End();
 
-        _ = try gfx.WaitSemaphores(&gfx.SemaphoreWaitInfo{
-            .pSemaphores = @ptrCast(&_timelineSemaphore),
-            .pValues = @ptrCast(&_semaphoreValue),
-            .semaphoreCount = 1,
-        }, ~@as(u64, 0));
-
-        _ = try gfx.WaitForFences(_presentFences, gfx.TRUE, ~@as(u64, 0));
-
         stageData.deinit();
         descriptorWrites.deinit();
         descriptorBufferWrites.deinit();
@@ -200,6 +192,16 @@ pub const Renderer = struct {
         util.mem.heap.free(renderCmdPools);
 
         try gfx.DestroyRenderPass(_renderPass);
+    }
+
+    pub fn waitFinishRendering() !void {
+        _ = try gfx.WaitSemaphores(&gfx.SemaphoreWaitInfo{
+            .pSemaphores = @ptrCast(&_timelineSemaphore),
+            .pValues = @ptrCast(&_semaphoreValue),
+            .semaphoreCount = 1,
+        }, ~@as(u64, 0));
+
+        _ = try gfx.WaitForFences(_presentFences, gfx.TRUE, ~@as(u64, 0));
     }
 
     pub fn addDescriptorUpdate(write: gfx.WriteDescriptorSet, useBufferInfo: bool, useImageInfo: bool) !void {

@@ -32,7 +32,9 @@ pub fn build(b: *std.Build) void {
     b.installArtifact(flecs);
 
     if (target.result.os.tag == .windows) {
-        flecs.linkSystemLibrary("ws2_32");
+        flecs.linkSystemLibrary2("ws2_32", .{
+            .weak = true,
+        });
     }
     const test_step = b.step("test", "Run zflecs tests");
 

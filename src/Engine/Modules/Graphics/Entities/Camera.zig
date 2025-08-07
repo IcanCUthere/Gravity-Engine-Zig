@@ -22,7 +22,9 @@ pub const Camera = struct {
             1.0,
             10000.0,
         ));
+        util.log.info("HIIIIEIR", .{});
         _ = flecs.set(scene, entity, core.Transform, core.Transform.init());
+        util.log.info("HIIIIEIR", .{});
 
         return entity;
     }

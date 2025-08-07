@@ -15,8 +15,12 @@ const config = std.heap.GeneralPurposeAllocatorConfig{
 
 var buffer: [settings.fixedBufferSize]u8 = undefined;
 
-pub var fixedBufferAllocator = if (builtin.mode == .Debug) std.heap.GeneralPurposeAllocator(config){ .requested_memory_limit = settings.fixedBufferSize } else std.heap.FixedBufferAllocator.init(&buffer);
+pub var fixedBufferAllocator = if (builtin.mode == .Debug) std.heap.GeneralPurposeAllocator(config){
+    .requested_memory_limit = settings.fixedBufferSize,
+} else std.heap.FixedBufferAllocator.init(&buffer);
 pub const fixedBuffer = fixedBufferAllocator.allocator();
 
-pub var heapAllocator = std.heap.GeneralPurposeAllocator(config){ .requested_memory_limit = settings.maxHeapSize };
+pub var heapAllocator = std.heap.GeneralPurposeAllocator(config){
+    .requested_memory_limit = settings.maxHeapSize,
+};
 pub const heap = if (builtin.mode == .Debug) heapAllocator.allocator() else std.heap.c_allocator;

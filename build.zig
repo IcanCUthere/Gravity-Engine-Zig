@@ -7,20 +7,6 @@ pub fn build(b: *std.Build) void {
     std.log.info("Compiling for: {s}-{s}-{s}", .{ @tagName(target.result.cpu.arch), @tagName(target.result.os.tag), @tagName(target.result.abi) });
     std.log.info("Compiling in Mode: {s}\n", .{@tagName(optimize)});
 
-    const exe = b.addExecutable(.{
-        .name = "run",
-        .root_source_file = b.path("src/entryPoint.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-
-    const tests = b.addTest(.{
-        .name = "test",
-        .root_source_file = b.path("src/tests/OsCompatibility.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-
     const zmath = b.dependency("zmath", .{});
     const zglfw = b.dependency("zglfw", .{});
     const zphysics = b.dependency("zphysics", .{
@@ -49,6 +35,8 @@ pub fn build(b: *std.Build) void {
 
     const coreModule = b.createModule(std.Build.Module.CreateOptions{
         .root_source_file = b.path("src/Engine/Modules/Core/core.zig"),
+        .target = target,
+        .optimize = optimize,
     });
     coreModule.addImport("zflecs", zflecs.module("root"));
     coreModule.addImport("ztracy", ztracy.module("root"));
@@ -56,8 +44,22 @@ pub fn build(b: *std.Build) void {
     coreModule.addImport("zmesh", zmesh.module("root"));
     coreModule.addImport("util", utils);
 
+    const coreLib = b.addLibrary(.{
+        .name = "core",
+        .root_module = coreModule,
+        .version = .{
+            .major = 0,
+            .minor = 0,
+            .patch = 0,
+        },
+        .linkage = .dynamic,
+    });
+    b.installArtifact(coreLib);
+
     const graphicsModule = b.createModule(std.Build.Module.CreateOptions{
         .root_source_file = b.path("src/Engine/Modules/Graphics/graphics.zig"),
+        .target = target,
+        .optimize = optimize,
     });
     graphicsModule.addImport("zflecs", zflecs.module("root"));
     graphicsModule.addImport("ztracy", ztracy.module("root"));
@@ -72,8 +74,22 @@ pub fn build(b: *std.Build) void {
         .flags = &.{ "-std=c++17", "-DVMA_IMPLEMENTATION", "-DVMA_DYNAMIC_VULKAN_FUNCTIONS=0", "-DVMA_STATIC_VULKAN_FUNCTIONS=0" },
     });
 
+    const graphicsLib = b.addLibrary(.{
+        .name = "graphics",
+        .root_module = graphicsModule,
+        .version = .{
+            .major = 0,
+            .minor = 0,
+            .patch = 0,
+        },
+        .linkage = .dynamic,
+    });
+    b.installArtifact(graphicsLib);
+
     const editorModule = b.createModule(std.Build.Module.CreateOptions{
         .root_source_file = b.path("src/Engine/Modules/Editor/editor.zig"),
+        .target = target,
+        .optimize = optimize,
     });
     editorModule.addImport("zflecs", zflecs.module("root"));
     editorModule.addImport("ztracy", ztracy.module("root"));
@@ -82,8 +98,22 @@ pub fn build(b: *std.Build) void {
     editorModule.addImport("GraphicsModule", graphicsModule);
     editorModule.addImport("util", utils);
 
+    const editorLib = b.addLibrary(.{
+        .name = "editor",
+        .root_module = editorModule,
+        .version = .{
+            .major = 0,
+            .minor = 0,
+            .patch = 0,
+        },
+        .linkage = .dynamic,
+    });
+    b.installArtifact(editorLib);
+
     const gameModule = b.createModule(std.Build.Module.CreateOptions{
         .root_source_file = b.path("src/Engine/Modules/Game/game.zig"),
+        .target = target,
+        .optimize = optimize,
     });
     gameModule.addImport("zflecs", zflecs.module("root"));
     gameModule.addImport("ztracy", ztracy.module("root"));
@@ -91,7 +121,32 @@ pub fn build(b: *std.Build) void {
     gameModule.addImport("GraphicsModule", graphicsModule);
     gameModule.addImport("util", utils);
 
-    for ([_]*std.Build.Step.Compile{ exe, tests }) |cmp| {
+    const gameLib = b.addLibrary(.{
+        .name = "game",
+        .root_module = gameModule,
+        .version = .{
+            .major = 0,
+            .minor = 0,
+            .patch = 0,
+        },
+        .linkage = .dynamic,
+    });
+    b.installArtifact(gameLib);
+
+    const exe = b.addExecutable(.{
+        .name = "run",
+        .root_source_file = b.path("src/entryPoint.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    exe.root_module.addImport("util", utils);
+    exe.root_module.addImport("CoreModule", coreModule);
+    exe.root_module.addImport("GraphicsModule", graphicsModule);
+    exe.root_module.addImport("EditorModule", editorModule);
+    exe.root_module.addImport("GameModule", gameModule);
+
+    for ([_]*std.Build.Step.Compile{ exe, coreLib, graphicsLib, editorLib, gameLib }) |cmp| {
         switch (target.result.os.tag) {
             .windows => {
                 if (target.result.cpu.arch.isX86()) {
@@ -141,12 +196,6 @@ pub fn build(b: *std.Build) void {
         cmp.root_module.addImport("ztracy", ztracy.module("root"));
         cmp.root_module.addImport("zflecs", zflecs.module("root"));
         cmp.root_module.addImport("zshaderc", zshaderc.module("root"));
-
-        cmp.root_module.addImport("util", utils);
-        cmp.root_module.addImport("CoreModule", coreModule);
-        cmp.root_module.addImport("GraphicsModule", graphicsModule);
-        cmp.root_module.addImport("EditorModule", editorModule);
-        cmp.root_module.addImport("GameModule", gameModule);
 
         b.installArtifact(cmp);
 
